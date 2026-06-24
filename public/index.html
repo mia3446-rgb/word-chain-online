@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>WORD CHAIN ARENA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Noto Sans KR', sans-serif;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .card {
+      width: 460px;
+      background: rgba(255,255,255,0.16);
+      padding: 32px;
+      border-radius: 28px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.3);
+      text-align: center;
+      backdrop-filter: blur(12px);
+    }
+
+    h1 {
+      font-size: 42px;
+      margin: 0;
+      font-weight: 900;
+      letter-spacing: -2px;
+      text-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .subtitle {
+      margin: 8px 0 24px;
+      opacity: 0.85;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    input {
+      width: 85%;
+      padding: 15px;
+      margin: 8px;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      outline: none;
+      text-align: center;
+      font-family: 'Noto Sans KR', sans-serif;
+      font-weight: 700;
+    }
+
+    input:disabled { opacity: 0.55; }
+
+    button {
+      padding: 14px 24px;
+      margin: 8px;
+      border: none;
+      border-radius: 14px;
+      background: #ffcc00;
+      font-weight: 900;
+      cursor: pointer;
+      font-size: 15px;
+      transition: 0.15s;
+      box-shadow: 0 8px 0 #c99d00;
+      font-family: 'Noto Sans KR', sans-serif;
+    }
+
+    button:hover { transform: scale(1.05); }
+
+    button:active {
+      transform: translateY(4px);
+      box-shadow: 0 4px 0 #c99d00;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    #game { display: none; }
+
+    .info {
+      background: rgba(0,0,0,0.25);
+      padding: 13px;
+      border-radius: 16px;
+      margin: 10px 0;
+      font-weight: 700;
+    }
+
+    .room {
+      font-size: 24px;
+      color: #ffe066;
+      font-weight: 900;
+    }
+
+    .word-box {
+      margin: 18px 0;
+      padding: 22px;
+      border-radius: 22px;
+      background: rgba(0,0,0,0.35);
+      border: 2px solid rgba(255,255,255,0.25);
+    }
+
+    .word-label {
+      font-size: 14px;
+      opacity: 0.8;
+      font-weight: 700;
+    }
+
+    #currentWord {
+      display: block;
+      margin-top: 8px;
+      font-size: 58px;
+      font-weight: 900;
+      color: #fff176;
+      text-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    }
+
+    #nextHint {
+      display: block;
+      margin-top: 6px;
+      font-size: 22px;
+      font-weight: 900;
+      color: #ffe066;
+    }
+
+    .turn-box {
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    #turnPlayer {
+      color: #ffe066;
+      font-size: 24px;
+    }
+
+    .timer {
+      font-size: 22px;
+      font-weight: 900;
+    }
+
+    .section-title {
+      margin-top: 20px;
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    #players {
+      list-style: none;
+      padding: 0;
+      margin: 8px 0;
+    }
+
+    #players li {
+      background: rgba(255,255,255,0.18);
+      margin: 6px auto;
+      padding: 10px;
+      border-radius: 12px;
+      width: 75%;
+      font-weight: 900;
+    }
+
+    .used-card {
+      display: inline-block;
+      background: rgba(255,255,255,0.18);
+      padding: 8px 12px;
+      border-radius: 999px;
+      margin: 4px;
+      font-weight: 900;
+      font-size: 14px;
+    }
+
+    #usedWords {
+      max-height: 130px;
+      overflow-y: auto;
+    }
+
+    #message {
+      color: #ffe066;
+      font-weight: 900;
+      min-height: 24px;
+      white-space: pre-line;
+    }
+
+    #winnerBox {
+      display: none;
+      background: rgba(255, 204, 0, 0.22);
+      border: 2px solid rgba(255, 224, 102, 0.75);
+      border-radius: 20px;
+      padding: 18px;
+      margin-top: 16px;
+      font-weight: 900;
+      color: #fff176;
+      text-shadow: 0 3px 8px rgba(0,0,0,0.25);
+    }
+
+    #winnerName {
+      font-size: 28px;
+      display: block;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h1>⚔️ WORD CHAIN ARENA</h1>
+    <div class="subtitle">실시간 온라인 끝말잇기</div>
+
+    <div id="lobby">
+      <input id="nickname" placeholder="닉네임 입력" />
+
+      <div class="info">
+        <h3>🏠 방 만들기</h3>
+        <button onclick="createRoom()">새 방 만들기</button>
+      </div>
+
+      <div class="info">
+        <h3>🚪 방 참가</h3>
+        <input id="roomCodeInput" placeholder="방번호 입력" />
+        <button onclick="joinRoom()">방 참가하기</button>
+      </div>
+    </div>
+
+    <div id="game">
+      <div class="info room">🏠 ROOM #<span id="roomCode"></span></div>
+      <div class="info">상태: <span id="status"></span></div>
+
+      <div class="word-box">
+        <div class="word-label">현재 단어</div>
+        <span id="currentWord">없음</span>
+        <span id="nextHint"></span>
+      </div>
+
+      <div class="info timer">⏱ 남은 시간: <span id="timeLimit">20</span>초</div>
+      <div class="info turn-box">🎯 현재 차례<br><span id="turnPlayer"></span></div>
+
+      <button id="startButton" onclick="startGame()">게임 시작</button>
+
+      <input id="wordInput" placeholder="단어 입력" />
+      <button id="submitButton" onclick="submitWord()">제출</button>
+
+      <div id="winnerBox">
+        🏆 승리
+        <span id="winnerName"></span>
+      </div>
+
+      <div class="section-title">👥 참가자</div>
+      <ul id="players"></ul>
+
+      <div class="section-title">📜 사용 단어</div>
+      <div id="usedWords"></div>
+    </div>
+
+    <p id="message"></p>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    let myRoomCode = "";
+    let mySocketId = "";
+    let isHost = false;
+
+    socket.on("connect", () => {
+      mySocketId = socket.id;
+    });
+
+    function createRoom() {
+      const nickname = document.getElementById("nickname").value.trim();
+      if (!nickname) return alert("닉네임을 입력하세요.");
+      socket.emit("createRoom", nickname);
+    }
+
+    function joinRoom() {
+      const nickname = document.getElementById("nickname").value.trim();
+      const roomCode = document.getElementById("roomCodeInput").value.trim();
+
+      if (!nickname || !roomCode) {
+        return alert("닉네임과 방번호를 입력하세요.");
+      }
+
+      myRoomCode = roomCode;
+      isHost = false;
+      socket.emit("joinRoom", { roomCode, nickname });
+    }
+
+    function startGame() {
+      socket.emit("startGame", myRoomCode);
+    }
+
+    function submitWord() {
+      const word = document.getElementById("wordInput").value.trim();
+      if (!word) return;
+
+      socket.emit("submitWord", { roomCode: myRoomCode, word });
+      document.getElementById("wordInput").value = "";
+    }
+
+    socket.on("roomCreated", (roomCode) => {
+      myRoomCode = roomCode;
+      isHost = true;
+
+      document.getElementById("lobby").style.display = "none";
+      document.getElementById("game").style.display = "block";
+      document.getElementById("roomCode").textContent = roomCode;
+    });
+
+    socket.on("roomUpdate", (room) => {
+      document.getElementById("lobby").style.display = "none";
+      document.getElementById("game").style.display = "block";
+
+      document.getElementById("roomCode").textContent = myRoomCode;
+
+      const statusText =
+        room.status === "waiting" ? "🟡 대기중" :
+        room.status === "playing" ? "🟢 게임중" :
+        "🔴 게임오버";
+
+      document.getElementById("status").textContent = statusText;
+      document.getElementById("currentWord").textContent = room.currentWord || "없음";
+
+      if (room.currentWord && room.nextStarts && room.nextStarts.length > 0) {
+        document.getElementById("nextHint").textContent = `(${room.nextStarts.join("/")})`;
+      } else {
+        document.getElementById("nextHint").textContent = "";
+      }
+
+      document.getElementById("timeLimit").textContent = room.timeLeft ?? 20;
+
+      const turnPlayer = room.players[room.turn];
+      document.getElementById("turnPlayer").textContent = turnPlayer ? turnPlayer.nickname : "";
+
+      document.getElementById("players").innerHTML =
+        room.players.map((p, index) => {
+          const icon = index === room.turn && room.status === "playing" ? "👑" : "⚔️";
+          return `<li>${icon} ${p.nickname}</li>`;
+        }).join("");
+
+      document.getElementById("usedWords").innerHTML =
+        room.usedWords.map(w => `<span class="used-card">🍎 ${w}</span>`).join("");
+
+      document.getElementById("startButton").style.display =
+        room.status !== "playing" && isHost ? "inline-block" : "none";
+
+      document.getElementById("submitButton").disabled = room.status !== "playing";
+      document.getElementById("wordInput").disabled = room.status !== "playing";
+
+      const winnerBox = document.getElementById("winnerBox");
+      const winnerName = document.getElementById("winnerName");
+
+      if (room.status === "gameover") {
+        document.getElementById("message").textContent = room.gameoverReason || "게임오버!";
+        winnerBox.style.display = "block";
+        winnerName.textContent = room.winnerText || "승자 없음";
+      } else {
+        winnerBox.style.display = "none";
+        winnerName.textContent = "";
+      }
+    });
+
+    socket.on("errorMessage", (msg) => {
+      const message = document.getElementById("message");
+      message.textContent = msg;
+
+      setTimeout(() => {
+        if (message.textContent === msg && !msg.includes("게임오버")) {
+          message.textContent = "";
+        }
+      }, 3000);
+    });
+  </script>
+</body>
+</html>
