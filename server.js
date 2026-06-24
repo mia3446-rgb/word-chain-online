@@ -185,11 +185,12 @@ function setTimeLimitByTurn(room) {
 }
 
 io.on("connection", (socket) => {
-  socket.on("createRoom", (nickname) => {
+  socket.on("createRoom", ({ nickname, password }) => {
     const roomCode = makeRoomCode();
 
     rooms[roomCode] = {
       players: [{ id: socket.id, nickname }],
+      password,
       hostId: socket.id,
       currentWord: "",
       turn: 0,
@@ -208,8 +209,12 @@ io.on("connection", (socket) => {
     sendRoomUpdate(roomCode);
   });
 
-  socket.on("joinRoom", ({ roomCode, nickname }) => {
+  socket.on("joinRoom", ({ roomCode, nickname, password }) => {
     if (!rooms[roomCode]) {
+      if (rooms[roomCode].password !== password) {
+  socket.emit("errorMessage", "비밀번호가 올바르지 않습니다.");
+  return;
+}
       socket.emit("errorMessage", "없는 방입니다.");
       return;
     }

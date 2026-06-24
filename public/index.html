@@ -216,6 +216,7 @@
 
     <div id="lobby">
       <input id="nickname" placeholder="닉네임 입력" />
+      <input id="roomPassword" placeholder="방 비밀번호 입력" />
 
       <div class="info">
         <h3>🏠 방 만들기</h3>
@@ -225,6 +226,7 @@
       <div class="info">
         <h3>🚪 방 참가</h3>
         <input id="roomCodeInput" placeholder="방번호 입력" />
+        <input id="joinPassword" placeholder="비밀번호 입력" />
         <button onclick="joinRoom()">방 참가하기</button>
       </div>
     </div>
@@ -275,10 +277,14 @@
     });
 
     function createRoom() {
-      const nickname = document.getElementById("nickname").value.trim();
-      if (!nickname) return alert("닉네임을 입력하세요.");
-      socket.emit("createRoom", nickname);
-    }
+  const nickname = document.getElementById("nickname").value.trim();
+  const password = document.getElementById("roomPassword").value.trim();
+
+  if (!nickname) return alert("닉네임을 입력하세요.");
+  if (!password) return alert("방 비밀번호를 입력하세요.");
+
+  socket.emit("createRoom", { nickname, password });
+}
 
     function joinRoom() {
       const nickname = document.getElementById("nickname").value.trim();
@@ -290,7 +296,13 @@
 
       myRoomCode = roomCode;
       isHost = false;
-      socket.emit("joinRoom", { roomCode, nickname });
+     const password = document.getElementById("joinPassword").value.trim();
+
+if (!password) {
+  return alert("비밀번호를 입력하세요.");
+}
+
+socket.emit("joinRoom", { roomCode, nickname, password });
     }
 
     function startGame() {
