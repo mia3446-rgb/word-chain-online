@@ -210,23 +210,31 @@ io.on("connection", (socket) => {
   });
 
   socket.on("joinRoom", ({ roomCode, nickname, password }) => {
-    if (!rooms[roomCode]) {
-      if (rooms[roomCode].password !== password) {
-  socket.emit("errorMessage", "비밀번호가 올바르지 않습니다.");
-  return;
-}
+    const room = rooms[roomCode];
+
+    if (!room) {
       socket.emit("errorMessage", "없는 방입니다.");
       return;
     }
 
-    if (rooms[roomCode].status === "playing") {
+    if (room.password && room.password !== password) {
+      socket.emit("errorMessage", "비밀번호가 올바르지 않습니다.");
+      return;
+    }
+
+    if (room.status === "playing") {
       socket.emit("errorMessage", "이미 게임이 시작된 방입니다.");
       return;
     }
 
-    rooms[roomCode].players.push({ id: socket.id, nickname });
+    room.players.push({ id: socket.id, nickname });
     socket.join(roomCode);
-    sendRoomUpdate(roomCode);
+
+    socket.emit("joinedRoom", roomCode);
+
+    setTimeout(() => {
+      sendRoomUpdate(roomCode);
+    }, 100);
   });
 
   socket.on("startGame", (roomCode) => {
