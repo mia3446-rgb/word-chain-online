@@ -18,7 +18,7 @@
     }
 
     .card {
-      width: min(980px, 94vw);
+      width: min(1040px, 94vw);
       background: rgba(255,255,255,0.16);
       padding: 34px;
       border-radius: 30px;
@@ -49,7 +49,7 @@
       align-items: start;
     }
 
-    input {
+    input, select {
       width: 85%;
       padding: 15px;
       margin: 8px;
@@ -105,6 +105,34 @@
       font-size: 24px;
       color: #ffe066;
       font-weight: 900;
+    }
+
+    .room-card {
+      background: rgba(255,255,255,0.18);
+      border-radius: 16px;
+      padding: 12px;
+      margin: 10px 0;
+      font-weight: 900;
+      text-align: left;
+    }
+
+    .room-card button {
+      width: auto;
+      padding: 10px 16px;
+      font-size: 13px;
+      margin: 8px 0 0;
+    }
+
+    .room-meta {
+      opacity: 0.9;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    #roomList {
+      max-height: 360px;
+      overflow-y: auto;
+      padding-right: 4px;
     }
 
     .word-box {
@@ -251,19 +279,32 @@
 
     <div id="lobby">
       <div class="wide-layout">
-        <div class="info">
-          <h3>🏠 방 만들기</h3>
-          <input id="nickname" placeholder="닉네임 입력" />
-          <input id="roomPassword" placeholder="방 비밀번호 입력" />
-          <button onclick="createRoom()">새 방 만들기</button>
+        <div>
+          <div class="info">
+            <h3>🏠 방 만들기</h3>
+            <input id="nickname" placeholder="닉네임 입력" />
+            <input id="roomPassword" placeholder="방 비밀번호 입력" />
+            <select id="roomPublic">
+              <option value="public">🌍 공개방</option>
+              <option value="private">🔒 비공개방</option>
+            </select>
+            <button onclick="createRoom()">새 방 만들기</button>
+          </div>
+
+          <div class="info">
+            <h3>🚪 방번호로 참가</h3>
+            <input id="joinNickname" placeholder="닉네임 입력" />
+            <input id="roomCodeInput" placeholder="방번호 입력" />
+            <input id="joinPassword" placeholder="비밀번호 입력" />
+            <button onclick="joinRoom()">방 참가하기</button>
+          </div>
         </div>
 
         <div class="info">
-          <h3>🚪 방 참가</h3>
-          <input id="joinNickname" placeholder="닉네임 입력" />
-          <input id="roomCodeInput" placeholder="방번호 입력" />
-          <input id="joinPassword" placeholder="비밀번호 입력" />
-          <button onclick="joinRoom()">방 참가하기</button>
+          <h3>🏠 공개 방 목록</h3>
+          <input id="roomSearch" placeholder="방번호/방장 검색" oninput="renderRoomList()" />
+          <button onclick="loadRoomList()">새로고침</button>
+          <div id="roomList">방 목록 불러오는 중...</div>
         </div>
       </div>
     </div>
@@ -316,6 +357,7 @@
     let myRoomCode = "";
     let mySocketId = "";
     let isHost = false;
+    let latestRooms = [];
 
     let playerId = sessionStorage.getItem("wordChainPlayerId");
     if (!playerId) {
@@ -325,16 +367,18 @@
 
     socket.on("connect", () => {
       mySocketId = socket.id;
+      loadRoomList();
     });
 
     function createRoom() {
       const nickname = document.getElementById("nickname").value.trim();
       const password = document.getElementById("roomPassword").value.trim();
+      const isPublic = document.getElementById("roomPublic").value === "public";
 
       if (!nickname) return alert("닉네임을 입력하세요.");
       if (!password) return alert("방 비밀번호를 입력하세요.");
 
-      socket.emit("createRoom", { nickname, password, playerId });
+      socket.emit("createRoom", { nickname, password, playerId, isPublic });
     }
 
     function joinRoom() {
@@ -356,6 +400,54 @@
       socket.emit("joinRoom", { roomCode, nickname, password, playerId });
     }
 
+    function loadRoomList() {
+      socket.emit("getRoomList");
+    }
+
+    function fillRoomCode(code) {
+      document.getElementById("roomCodeInput").value = code;
+      document.getElementById("roomCodeInput").scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    function renderRoomList() {
+      const keyword = document.getElementById("roomSearch").value.trim().toLowerCase();
+      const roomList = document.getElementById("roomList");
+
+      let rooms = latestRooms;
+
+      if (keyword) {
+        rooms = rooms.filter(room =>
+          room.code.includes(keyword) ||
+          room.hostName.toLowerCase().includes(keyword) ||
+          room.title.toLowerCase().includes(keyword)
+        );
+      }
+
+      rooms = rooms.slice(0, 10);
+
+      if (rooms.length === 0) {
+        roomList.innerHTML = "표시할 공개방이 없습니다.";
+        return;
+      }
+
+      roomList.innerHTML = rooms.map(room => {
+        const statusIcon = room.status === "waiting" ? "🟢 대기중" :
+          room.status === "playing" ? "🔴 게임중" :
+          "⚫ 종료";
+
+        const disabled = room.status === "waiting" ? "" : "disabled";
+        const lock = room.locked ? "🔒" : "🌍";
+
+        return `
+          <div class="room-card">
+            <div>${lock} ${room.title}</div>
+            <div class="room-meta">방번호: ${room.code} / 👥 ${room.players}/${room.maxPlayers} / ${statusIcon}</div>
+            <button ${disabled} onclick="fillRoomCode('${room.code}')">참가 준비</button>
+          </div>
+        `;
+      }).join("");
+    }
+
     function startGame() {
       socket.emit("startGame", myRoomCode);
     }
@@ -367,6 +459,11 @@
       socket.emit("submitWord", { roomCode: myRoomCode, word });
       document.getElementById("wordInput").value = "";
     }
+
+    socket.on("roomList", (rooms) => {
+      latestRooms = rooms || [];
+      renderRoomList();
+    });
 
     socket.on("roomCreated", (roomCode) => {
       myRoomCode = roomCode;
