@@ -251,6 +251,58 @@
       margin-top: 6px;
     }
 
+    .chat-box {
+      background: rgba(0,0,0,0.25);
+      border-radius: 16px;
+      padding: 12px;
+      margin-top: 14px;
+    }
+
+    #chatMessages {
+      height: 190px;
+      overflow-y: auto;
+      text-align: left;
+      padding: 8px;
+      background: rgba(0,0,0,0.22);
+      border-radius: 12px;
+      font-size: 14px;
+    }
+
+    .chat-message {
+      margin: 6px 0;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .chat-nickname {
+      color: #ffe066;
+      font-weight: 900;
+    }
+
+    .chat-system {
+      color: #b8ffcf;
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .chat-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    #chatInput {
+      width: 70%;
+      margin: 0;
+    }
+
+    #chatSendButton {
+      margin: 0;
+      padding: 14px 18px;
+    }
+
     @media (max-width: 720px) {
       .card {
         width: 92vw;
@@ -341,6 +393,15 @@
 
           <div class="section-title">📜 사용 단어</div>
           <div id="usedWords"></div>
+
+          <div class="chat-box">
+            <div class="section-title">💬 채팅</div>
+            <div id="chatMessages"></div>
+            <div class="chat-row">
+              <input id="chatInput" placeholder="메시지 입력" maxlength="100" />
+              <button id="chatSendButton" onclick="sendChat()">전송</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -460,6 +521,22 @@
       document.getElementById("wordInput").value = "";
     }
 
+    function sendChat() {
+      const chatInput = document.getElementById("chatInput");
+      const text = chatInput.value.trim();
+
+      if (!text || !myRoomCode) return;
+
+      socket.emit("sendChat", { roomCode: myRoomCode, text });
+      chatInput.value = "";
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && document.activeElement.id === "chatInput") {
+        sendChat();
+      }
+    });
+
     socket.on("roomList", (rooms) => {
       latestRooms = rooms || [];
       renderRoomList();
@@ -532,6 +609,8 @@
 
       document.getElementById("submitButton").disabled = room.status !== "playing";
       document.getElementById("wordInput").disabled = room.status !== "playing";
+      document.getElementById("chatInput").disabled = false;
+      document.getElementById("chatSendButton").disabled = false;
 
       const winnerBox = document.getElementById("winnerBox");
       const winnerName = document.getElementById("winnerName");
@@ -548,6 +627,27 @@
           document.getElementById("message").textContent = room.lastNotice;
         }
       }
+    });
+
+    socket.on("chatUpdate", (messages) => {
+      const chatMessages = document.getElementById("chatMessages");
+
+      if (!chatMessages) return;
+
+      chatMessages.innerHTML = (messages || []).map(msg => {
+        if (msg.type === "system") {
+          return `<div class="chat-message chat-system">${msg.text}</div>`;
+        }
+
+        return `
+          <div class="chat-message">
+            <span class="chat-nickname">${msg.nickname}</span>
+            <span>: ${msg.text}</span>
+          </div>
+        `;
+      }).join("");
+
+      chatMessages.scrollTop = chatMessages.scrollHeight;
     });
 
     socket.on("errorMessage", (msg) => {

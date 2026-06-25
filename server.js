@@ -180,7 +180,8 @@ function publicRoom(room) {
     gameoverReason: room.gameoverReason,
     winnerText: room.winnerText,
     lastNotice: room.lastNotice,
-    startWord: room.startWord
+    startWord: room.startWord,
+    chatMessages: room.chatMessages || []
   };
 }
 
@@ -232,6 +233,7 @@ function gameOver(roomCode, reason) {
   room.status = "gameover";
   room.gameoverReason = reason;
   room.winnerText = getWinnerText(room);
+  addSystemMessage(roomCode, `🏆 최종 승리: ${room.winnerText}`);
 
   stopTimer(room);
   sendRoomUpdate(roomCode);
@@ -254,6 +256,7 @@ function eliminatePlayer(roomCode, player, reason) {
   player.eliminated = true;
   room.wrongCount = 0;
   room.lastNotice = `${player.nickname} 탈락! ${reason}`;
+  addSystemMessage(roomCode, `💀 ${player.nickname}님 탈락! (${reason})`);
 
   const alive = activePlayers(room);
 
@@ -315,6 +318,32 @@ function setTimeLimitByTurn(room) {
   room.timeLeft = room.timeLimit;
 }
 
+function addChatMessage(roomCode, message) {
+  const room = rooms[roomCode];
+  if (!room) return;
+
+  if (!room.chatMessages) {
+    room.chatMessages = [];
+  }
+
+  room.chatMessages.push(message);
+
+  if (room.chatMessages.length > 100) {
+    room.chatMessages = room.chatMessages.slice(-100);
+  }
+
+  io.to(roomCode).emit("chatUpdate", room.chatMessages);
+}
+
+function addSystemMessage(roomCode, text) {
+  addChatMessage(roomCode, {
+    type: "system",
+    nickname: "SYSTEM",
+    text,
+    time: Date.now()
+  });
+}
+
 function upsertPlayer(room, socket, playerId, nickname) {
   let player = findPlayer(room, playerId);
 
@@ -372,6 +401,7 @@ io.on("connection", (socket) => {
       gameoverReason: "",
       winnerText: "",
       lastNotice: "",
+      chatMessages: [],
       timer: null
     };
 
@@ -382,6 +412,7 @@ io.on("connection", (socket) => {
 
     socket.join(roomCode);
     socket.emit("roomCreated", roomCode);
+    addSystemMessage(roomCode, `🟢 ${nickname}님이 방을 만들었습니다.`);
     sendRoomUpdate(roomCode);
   });
 
@@ -420,6 +451,7 @@ io.on("connection", (socket) => {
 
     socket.join(roomCode);
     socket.emit("joinedRoom", roomCode);
+    addSystemMessage(roomCode, `🟢 ${nickname}님이 입장했습니다.`);
 
     setTimeout(() => {
       sendRoomUpdate(roomCode);
@@ -465,6 +497,7 @@ io.on("connection", (socket) => {
     room.gameoverReason = "";
     room.winnerText = "";
     room.lastNotice = `🎲 시작 단어: ${startWord}`;
+    addSystemMessage(roomCode, `🎮 게임 시작! 시작 단어는 ${startWord}`);
 
     startTurnTimer(roomCode);
   });
@@ -527,6 +560,35 @@ io.on("connection", (socket) => {
 
     setTimeLimitByTurn(room);
     startTurnTimer(roomCode);
+  });
+
+  socket.on("sendChat", ({ roomCode, text }) => {
+    const room = rooms[roomCode];
+
+    if (!room) {
+      socket.emit("errorMessage", "방이 없습니다.");
+      return;
+    }
+
+    const player = findPlayer(room, socket.data.playerId);
+
+    if (!player) {
+      socket.emit("errorMessage", "채팅을 보낼 수 없습니다.");
+      return;
+    }
+
+    const cleanText = String(text || "").trim().slice(0, 100);
+
+    if (!cleanText) {
+      return;
+    }
+
+    addChatMessage(roomCode, {
+      type: "user",
+      nickname: player.nickname,
+      text: cleanText,
+      time: Date.now()
+    });
   });
 
   socket.on("disconnect", () => {
