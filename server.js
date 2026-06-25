@@ -109,7 +109,7 @@ function hasNextWord(word) {
 }
 
 function getRandomStartWord() {
-  const candidates = allWords.filter(word => isKoreanWord(word) && hasNextWord(word));
+  const candidates = allWords.filter(word => isKoreanWord(word));
 
   if (candidates.length === 0) {
     return "";
