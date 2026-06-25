@@ -34,7 +34,9 @@ if (fs.existsSync(wordsDir)) {
       .map(w => w.trim())
       .filter(w => /^[가-힣]{2,}$/.test(w));
 
-    allWords.push(...words);
+    for (const w of words) {
+    allWords.push(w);
+}
   }
 
   console.log(`단어 DB ${files.length}개 파일 불러옴`);
