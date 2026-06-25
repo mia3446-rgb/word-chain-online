@@ -317,11 +317,12 @@
     let mySocketId = "";
     let isHost = false;
 
-    let playerId = localStorage.getItem("wordChainPlayerId");
-    if (!playerId) {
-      playerId = "p_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-      localStorage.setItem("wordChainPlayerId", playerId);
-    }
+    let playerId = sessionStorage.getItem("wordChainPlayerId");
+
+if (!playerId) {
+  playerId = "p_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+  sessionStorage.setItem("wordChainPlayerId", playerId);
+}
 
     socket.on("connect", () => {
       mySocketId = socket.id;
