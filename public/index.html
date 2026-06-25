@@ -318,11 +318,10 @@
     let isHost = false;
 
     let playerId = sessionStorage.getItem("wordChainPlayerId");
-
-if (!playerId) {
-  playerId = "p_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-  sessionStorage.setItem("wordChainPlayerId", playerId);
-}
+    if (!playerId) {
+      playerId = "p_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+      sessionStorage.setItem("wordChainPlayerId", playerId);
+    }
 
     socket.on("connect", () => {
       mySocketId = socket.id;

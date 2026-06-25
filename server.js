@@ -18,6 +18,7 @@ app.use(express.static("public"));
 
 const rooms = {};
 const wordDB = [];
+const allWords = [];
 
 const wordsDir = path.join(__dirname, "words");
 
@@ -27,9 +28,17 @@ if (fs.existsSync(wordsDir)) {
   for (const file of files) {
     const text = fs.readFileSync(path.join(wordsDir, file), "utf8");
     wordDB.push("/" + text.trim() + "/");
+
+    const words = text
+      .split("/")
+      .map(w => w.trim())
+      .filter(w => /^[가-힣]{2,}$/.test(w));
+
+    allWords.push(...words);
   }
 
   console.log(`단어 DB ${files.length}개 파일 불러옴`);
+  console.log(`전체 단어 ${allWords.length}개 준비됨`);
 } else {
   console.log("words 폴더가 없습니다.");
 }
@@ -95,6 +104,16 @@ function hasNextWord(word) {
   const starts = getDueumStarts(last);
 
   return starts.some(start => wordDB.some(db => db.includes("/" + start)));
+}
+
+function getRandomStartWord() {
+  const candidates = allWords.filter(word => isKoreanWord(word) && hasNextWord(word));
+
+  if (candidates.length === 0) {
+    return "";
+  }
+
+  return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
 function stopTimer(room) {
@@ -165,7 +184,8 @@ function publicRoom(room) {
     wrongCount: room.wrongCount,
     gameoverReason: room.gameoverReason,
     winnerText: room.winnerText,
-    lastNotice: room.lastNotice
+    lastNotice: room.lastNotice,
+    startWord: room.startWord
   };
 }
 
@@ -188,6 +208,16 @@ function gameOver(roomCode, reason) {
   sendRoomUpdate(roomCode);
 }
 
+function resetRoundAfterElimination(room) {
+  const newStartWord = getRandomStartWord();
+
+  room.currentWord = newStartWord;
+  room.startWord = newStartWord;
+  room.usedWords = [];
+  room.timeLimit = 20;
+  room.timeLeft = 20;
+}
+
 function eliminatePlayer(roomCode, player, reason) {
   const room = rooms[roomCode];
   if (!room || !player || player.eliminated) return;
@@ -203,6 +233,7 @@ function eliminatePlayer(roomCode, player, reason) {
     return;
   }
 
+  resetRoundAfterElimination(room);
   room.turn = nextActiveTurn(room, room.turn);
   startTurnTimer(roomCode);
 }
@@ -294,6 +325,7 @@ io.on("connection", (socket) => {
       password: String(password),
       hostId: playerId,
       currentWord: "",
+      startWord: "",
       turn: 0,
       usedWords: [],
       status: "waiting",
@@ -373,16 +405,24 @@ io.on("connection", (socket) => {
       return;
     }
 
+    const startWord = getRandomStartWord();
+
+    if (!startWord) {
+      socket.emit("errorMessage", "시작 단어를 고를 수 없습니다. words 폴더를 확인하세요.");
+      return;
+    }
+
     room.status = "playing";
     room.turn = 0;
-    room.currentWord = "";
+    room.currentWord = startWord;
+    room.startWord = startWord;
     room.usedWords = [];
     room.timeLimit = 20;
     room.timeLeft = 20;
     room.wrongCount = 0;
     room.gameoverReason = "";
     room.winnerText = "";
-    room.lastNotice = "";
+    room.lastNotice = `🎲 시작 단어: ${startWord}`;
 
     startTurnTimer(roomCode);
   });
@@ -421,7 +461,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (room.usedWords.includes(word)) {
+    if (room.usedWords.includes(word) || word === room.startWord) {
       wrong("이미 사용한 단어입니다.");
       return;
     }
@@ -435,11 +475,6 @@ io.on("connection", (socket) => {
         wrong(`${starts}로 시작해야 합니다!`);
         return;
       }
-    }
-
-    if (room.usedWords.length === 0 && !hasNextWord(word)) {
-      wrong("한방단어는 첫 단어로 사용할 수 없습니다!");
-      return;
     }
 
     room.currentWord = word;
