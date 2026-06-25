@@ -18,17 +18,17 @@
     }
 
     .card {
-      width: 460px;
+      width: min(980px, 94vw);
       background: rgba(255,255,255,0.16);
-      padding: 32px;
-      border-radius: 28px;
+      padding: 34px;
+      border-radius: 30px;
       box-shadow: 0 25px 60px rgba(0,0,0,0.3);
       text-align: center;
       backdrop-filter: blur(12px);
     }
 
     h1 {
-      font-size: 42px;
+      font-size: 46px;
       margin: 0;
       font-weight: 900;
       letter-spacing: -2px;
@@ -40,6 +40,13 @@
       opacity: 0.85;
       font-size: 15px;
       font-weight: 700;
+    }
+
+    .wide-layout {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+      align-items: start;
     }
 
     input {
@@ -102,8 +109,8 @@
 
     .word-box {
       margin: 18px 0;
-      padding: 22px;
-      border-radius: 22px;
+      padding: 28px;
+      border-radius: 24px;
       background: rgba(0,0,0,0.35);
       border: 2px solid rgba(255,255,255,0.25);
     }
@@ -117,7 +124,7 @@
     #currentWord {
       display: block;
       margin-top: 8px;
-      font-size: 58px;
+      font-size: 68px;
       font-weight: 900;
       color: #fff176;
       text-shadow: 0 4px 12px rgba(0,0,0,0.35);
@@ -126,7 +133,7 @@
     #nextHint {
       display: block;
       margin-top: 6px;
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 900;
       color: #ffe066;
     }
@@ -138,7 +145,7 @@
 
     #turnPlayer {
       color: #ffe066;
-      font-size: 24px;
+      font-size: 26px;
     }
 
     .timer {
@@ -163,8 +170,17 @@
       margin: 6px auto;
       padding: 10px;
       border-radius: 12px;
-      width: 75%;
+      width: 88%;
       font-weight: 900;
+    }
+
+    .disconnected {
+      opacity: 0.45;
+    }
+
+    .eliminated {
+      opacity: 0.45;
+      text-decoration: line-through;
     }
 
     .used-card {
@@ -178,7 +194,7 @@
     }
 
     #usedWords {
-      max-height: 130px;
+      max-height: 170px;
       overflow-y: auto;
     }
 
@@ -202,9 +218,28 @@
     }
 
     #winnerName {
-      font-size: 28px;
+      font-size: 30px;
       display: block;
       margin-top: 6px;
+    }
+
+    @media (max-width: 720px) {
+      .card {
+        width: 92vw;
+        padding: 24px;
+      }
+
+      .wide-layout {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 36px;
+      }
+
+      #currentWord {
+        font-size: 52px;
+      }
     }
   </style>
 </head>
@@ -215,50 +250,58 @@
     <div class="subtitle">실시간 온라인 끝말잇기</div>
 
     <div id="lobby">
-      <input id="nickname" placeholder="닉네임 입력" />
-      <input id="roomPassword" placeholder="방 비밀번호 입력" />
+      <div class="wide-layout">
+        <div class="info">
+          <h3>🏠 방 만들기</h3>
+          <input id="nickname" placeholder="닉네임 입력" />
+          <input id="roomPassword" placeholder="방 비밀번호 입력" />
+          <button onclick="createRoom()">새 방 만들기</button>
+        </div>
 
-      <div class="info">
-        <h3>🏠 방 만들기</h3>
-        <button onclick="createRoom()">새 방 만들기</button>
-      </div>
-
-      <div class="info">
-        <h3>🚪 방 참가</h3>
-        <input id="roomCodeInput" placeholder="방번호 입력" />
-        <input id="joinPassword" placeholder="비밀번호 입력" />
-        <button onclick="joinRoom()">방 참가하기</button>
+        <div class="info">
+          <h3>🚪 방 참가</h3>
+          <input id="joinNickname" placeholder="닉네임 입력" />
+          <input id="roomCodeInput" placeholder="방번호 입력" />
+          <input id="joinPassword" placeholder="비밀번호 입력" />
+          <button onclick="joinRoom()">방 참가하기</button>
+        </div>
       </div>
     </div>
 
     <div id="game">
-      <div class="info room">🏠 ROOM #<span id="roomCode"></span></div>
-      <div class="info">상태: <span id="status"></span></div>
+      <div class="wide-layout">
+        <div>
+          <div class="info room">🏠 ROOM #<span id="roomCode"></span></div>
+          <div class="info">상태: <span id="status"></span></div>
 
-      <div class="word-box">
-        <div class="word-label">현재 단어</div>
-        <span id="currentWord">없음</span>
-        <span id="nextHint"></span>
+          <div class="word-box">
+            <div class="word-label">현재 단어</div>
+            <span id="currentWord">없음</span>
+            <span id="nextHint"></span>
+          </div>
+
+          <div class="info timer">⏱ 남은 시간: <span id="timeLimit">20</span>초</div>
+          <div class="info turn-box">🎯 현재 차례<br><span id="turnPlayer"></span></div>
+
+          <button id="startButton" onclick="startGame()">게임 시작</button>
+
+          <input id="wordInput" placeholder="단어 입력" />
+          <button id="submitButton" onclick="submitWord()">제출</button>
+
+          <div id="winnerBox">
+            🏆 최종 승리
+            <span id="winnerName"></span>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-title">👥 참가자</div>
+          <ul id="players"></ul>
+
+          <div class="section-title">📜 사용 단어</div>
+          <div id="usedWords"></div>
+        </div>
       </div>
-
-      <div class="info timer">⏱ 남은 시간: <span id="timeLimit">20</span>초</div>
-      <div class="info turn-box">🎯 현재 차례<br><span id="turnPlayer"></span></div>
-
-      <button id="startButton" onclick="startGame()">게임 시작</button>
-
-      <input id="wordInput" placeholder="단어 입력" />
-      <button id="submitButton" onclick="submitWord()">제출</button>
-
-      <div id="winnerBox">
-        🏆 승리
-        <span id="winnerName"></span>
-      </div>
-
-      <div class="section-title">👥 참가자</div>
-      <ul id="players"></ul>
-
-      <div class="section-title">📜 사용 단어</div>
-      <div id="usedWords"></div>
     </div>
 
     <p id="message"></p>
@@ -266,43 +309,51 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    const socket = io(window.location.origin);
+    const socket = io(window.location.origin, {
+      transports: ["websocket", "polling"]
+    });
 
     let myRoomCode = "";
     let mySocketId = "";
     let isHost = false;
+
+    let playerId = localStorage.getItem("wordChainPlayerId");
+    if (!playerId) {
+      playerId = "p_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+      localStorage.setItem("wordChainPlayerId", playerId);
+    }
 
     socket.on("connect", () => {
       mySocketId = socket.id;
     });
 
     function createRoom() {
-  const nickname = document.getElementById("nickname").value.trim();
-  const password = document.getElementById("roomPassword").value.trim();
+      const nickname = document.getElementById("nickname").value.trim();
+      const password = document.getElementById("roomPassword").value.trim();
 
-  if (!nickname) return alert("닉네임을 입력하세요.");
-  if (!password) return alert("방 비밀번호를 입력하세요.");
+      if (!nickname) return alert("닉네임을 입력하세요.");
+      if (!password) return alert("방 비밀번호를 입력하세요.");
 
-  socket.emit("createRoom", { nickname, password });
-}
+      socket.emit("createRoom", { nickname, password, playerId });
+    }
 
     function joinRoom() {
-      const nickname = document.getElementById("nickname").value.trim();
+      const nickname = document.getElementById("joinNickname").value.trim();
       const roomCode = document.getElementById("roomCodeInput").value.trim();
+      const password = document.getElementById("joinPassword").value.trim();
 
       if (!nickname || !roomCode) {
         return alert("닉네임과 방번호를 입력하세요.");
       }
 
+      if (!password) {
+        return alert("비밀번호를 입력하세요.");
+      }
+
       myRoomCode = roomCode;
       isHost = false;
-     const password = document.getElementById("joinPassword").value.trim();
 
-if (!password) {
-  return alert("비밀번호를 입력하세요.");
-}
-
-socket.emit("joinRoom", { roomCode, nickname, password });
+      socket.emit("joinRoom", { roomCode, nickname, password, playerId });
     }
 
     function startGame() {
@@ -326,11 +377,22 @@ socket.emit("joinRoom", { roomCode, nickname, password });
       document.getElementById("roomCode").textContent = roomCode;
     });
 
+    socket.on("joinedRoom", (roomCode) => {
+      myRoomCode = roomCode;
+      isHost = false;
+
+      document.getElementById("lobby").style.display = "none";
+      document.getElementById("game").style.display = "block";
+      document.getElementById("roomCode").textContent = roomCode;
+    });
+
     socket.on("roomUpdate", (room) => {
       document.getElementById("lobby").style.display = "none";
       document.getElementById("game").style.display = "block";
 
       document.getElementById("roomCode").textContent = myRoomCode;
+
+      isHost = room.hostId === playerId;
 
       const statusText =
         room.status === "waiting" ? "🟡 대기중" :
@@ -349,12 +411,20 @@ socket.emit("joinRoom", { roomCode, nickname, password });
       document.getElementById("timeLimit").textContent = room.timeLeft ?? 20;
 
       const turnPlayer = room.players[room.turn];
-      document.getElementById("turnPlayer").textContent = turnPlayer ? turnPlayer.nickname : "";
+      document.getElementById("turnPlayer").textContent =
+        turnPlayer ? `${turnPlayer.nickname}${turnPlayer.eliminated ? " (탈락)" : ""}` : "";
 
       document.getElementById("players").innerHTML =
         room.players.map((p, index) => {
-          const icon = index === room.turn && room.status === "playing" ? "👑" : "⚔️";
-          return `<li>${icon} ${p.nickname}</li>`;
+          const icon = index === room.turn && room.status === "playing" && !p.eliminated ? "👑" : "⚔️";
+          const host = p.playerId === room.hostId ? " 👑방장" : "";
+          const offline = p.connected ? "" : " (연결 끊김)";
+          const eliminated = p.eliminated ? " 💀탈락" : "";
+          const cls =
+            (p.connected ? "" : "disconnected ") +
+            (p.eliminated ? "eliminated" : "");
+
+          return `<li class="${cls.trim()}">${icon} ${p.nickname}${host}${offline}${eliminated}</li>`;
         }).join("");
 
       document.getElementById("usedWords").innerHTML =
@@ -376,6 +446,10 @@ socket.emit("joinRoom", { roomCode, nickname, password });
       } else {
         winnerBox.style.display = "none";
         winnerName.textContent = "";
+
+        if (room.lastNotice) {
+          document.getElementById("message").textContent = room.lastNotice;
+        }
       }
     });
 

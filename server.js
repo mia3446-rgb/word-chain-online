@@ -6,7 +6,13 @@ const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+
+const io = new Server(server, {
+  transports: ["websocket", "polling"],
+  cors: {
+    origin: "*"
+  }
+});
 
 app.use(express.static("public"));
 
@@ -29,7 +35,11 @@ if (fs.existsSync(wordsDir)) {
 }
 
 function makeRoomCode() {
-  return Math.floor(1000 + Math.random() * 9000).toString();
+  let code;
+  do {
+    code = Math.floor(1000 + Math.random() * 9000).toString();
+  } while (rooms[code]);
+  return code;
 }
 
 function wordExists(word) {
@@ -94,21 +104,56 @@ function stopTimer(room) {
   }
 }
 
-function getWinnerText(room, loserId) {
-  const winners = room.players
-    .filter(p => p.id !== loserId)
-    .map(p => p.nickname);
-
-  if (winners.length === 0) return "승자 없음";
-  return winners.join(", ");
+function activePlayers(room) {
+  return room.players.filter(p => !p.eliminated);
 }
 
-function sendRoomUpdate(roomCode) {
-  const room = rooms[roomCode];
-  if (!room) return;
+function findPlayer(room, playerId) {
+  return room.players.find(p => p.playerId === playerId);
+}
 
-  io.to(roomCode).emit("roomUpdate", {
-    players: room.players,
+function currentPlayer(room) {
+  return room.players[room.turn];
+}
+
+function nextActiveTurn(room, startIndex) {
+  if (activePlayers(room).length === 0) return 0;
+
+  for (let i = 1; i <= room.players.length; i++) {
+    const idx = (startIndex + i) % room.players.length;
+    const p = room.players[idx];
+
+    if (p && !p.eliminated) {
+      return idx;
+    }
+  }
+
+  return 0;
+}
+
+function getWinnerText(room) {
+  const alive = activePlayers(room);
+
+  if (alive.length === 1) {
+    return alive[0].nickname;
+  }
+
+  if (alive.length === 0) {
+    return "승자 없음";
+  }
+
+  return alive.map(p => p.nickname).join(", ");
+}
+
+function publicRoom(room) {
+  return {
+    players: room.players.map(p => ({
+      playerId: p.playerId,
+      socketId: p.socketId,
+      nickname: p.nickname,
+      connected: p.connected,
+      eliminated: p.eliminated
+    })),
     hostId: room.hostId,
     currentWord: room.currentWord,
     nextStarts: getNextStartsForWord(room.currentWord),
@@ -119,20 +164,47 @@ function sendRoomUpdate(roomCode) {
     timeLeft: room.timeLeft,
     wrongCount: room.wrongCount,
     gameoverReason: room.gameoverReason,
-    winnerText: room.winnerText
-  });
+    winnerText: room.winnerText,
+    lastNotice: room.lastNotice
+  };
 }
 
-function gameOver(roomCode, reason, loserId = null) {
+function sendRoomUpdate(roomCode) {
+  const room = rooms[roomCode];
+  if (!room) return;
+
+  io.to(roomCode).emit("roomUpdate", publicRoom(room));
+}
+
+function gameOver(roomCode, reason) {
   const room = rooms[roomCode];
   if (!room) return;
 
   room.status = "gameover";
   room.gameoverReason = reason;
-  room.winnerText = loserId ? getWinnerText(room, loserId) : "승자 없음";
+  room.winnerText = getWinnerText(room);
 
   stopTimer(room);
   sendRoomUpdate(roomCode);
+}
+
+function eliminatePlayer(roomCode, player, reason) {
+  const room = rooms[roomCode];
+  if (!room || !player || player.eliminated) return;
+
+  player.eliminated = true;
+  room.wrongCount = 0;
+  room.lastNotice = `${player.nickname} 탈락! ${reason}`;
+
+  const alive = activePlayers(room);
+
+  if (alive.length <= 1) {
+    gameOver(roomCode, `${player.nickname}님이 탈락했습니다!`);
+    return;
+  }
+
+  room.turn = nextActiveTurn(room, room.turn);
+  startTurnTimer(roomCode);
 }
 
 function startTurnTimer(roomCode) {
@@ -154,9 +226,8 @@ function startTurnTimer(roomCode) {
     r.timeLeft--;
 
     if (r.timeLeft <= 0) {
-      const player = r.players[r.turn];
-      const name = player ? player.nickname : "플레이어";
-      gameOver(roomCode, `${name}님이 시간 초과로 게임오버!`, player ? player.id : null);
+      const player = currentPlayer(r);
+      eliminatePlayer(roomCode, player, "시간 초과");
       return;
     }
 
@@ -184,14 +255,44 @@ function setTimeLimitByTurn(room) {
   room.timeLeft = room.timeLimit;
 }
 
+function upsertPlayer(room, socket, playerId, nickname) {
+  let player = findPlayer(room, playerId);
+
+  if (player) {
+    player.socketId = socket.id;
+    player.nickname = nickname;
+    player.connected = true;
+    return player;
+  }
+
+  player = {
+    playerId,
+    socketId: socket.id,
+    nickname,
+    connected: true,
+    eliminated: false
+  };
+
+  room.players.push(player);
+  return player;
+}
+
 io.on("connection", (socket) => {
-  socket.on("createRoom", ({ nickname, password }) => {
+  socket.data.roomCode = null;
+  socket.data.playerId = null;
+
+  socket.on("createRoom", ({ nickname, password, playerId }) => {
+    if (!nickname || !password || !playerId) {
+      socket.emit("errorMessage", "닉네임과 비밀번호를 입력하세요.");
+      return;
+    }
+
     const roomCode = makeRoomCode();
 
     rooms[roomCode] = {
-      players: [{ id: socket.id, nickname }],
-      password,
-      hostId: socket.id,
+      players: [],
+      password: String(password),
+      hostId: playerId,
       currentWord: "",
       turn: 0,
       usedWords: [],
@@ -201,15 +302,21 @@ io.on("connection", (socket) => {
       wrongCount: 0,
       gameoverReason: "",
       winnerText: "",
+      lastNotice: "",
       timer: null
     };
+
+    upsertPlayer(rooms[roomCode], socket, playerId, nickname);
+
+    socket.data.roomCode = roomCode;
+    socket.data.playerId = playerId;
 
     socket.join(roomCode);
     socket.emit("roomCreated", roomCode);
     sendRoomUpdate(roomCode);
   });
 
-  socket.on("joinRoom", ({ roomCode, nickname, password }) => {
+  socket.on("joinRoom", ({ roomCode, nickname, password, playerId }) => {
     const room = rooms[roomCode];
 
     if (!room) {
@@ -217,7 +324,12 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (room.password && room.password !== password) {
+    if (!nickname || !password || !playerId) {
+      socket.emit("errorMessage", "닉네임과 비밀번호를 입력하세요.");
+      return;
+    }
+
+    if (room.password && room.password !== String(password)) {
       socket.emit("errorMessage", "비밀번호가 올바르지 않습니다.");
       return;
     }
@@ -227,9 +339,12 @@ io.on("connection", (socket) => {
       return;
     }
 
-    room.players.push({ id: socket.id, nickname });
-    socket.join(roomCode);
+    upsertPlayer(room, socket, playerId, nickname);
 
+    socket.data.roomCode = roomCode;
+    socket.data.playerId = playerId;
+
+    socket.join(roomCode);
     socket.emit("joinedRoom", roomCode);
 
     setTimeout(() => {
@@ -241,12 +356,22 @@ io.on("connection", (socket) => {
     const room = rooms[roomCode];
     if (!room) return;
 
-    if (room.hostId !== socket.id) {
+    if (room.hostId !== socket.data.playerId) {
       socket.emit("errorMessage", "방장만 게임을 시작할 수 있습니다.");
       return;
     }
 
     if (room.status === "playing") return;
+
+    room.players.forEach(p => {
+      p.eliminated = false;
+      p.connected = true;
+    });
+
+    if (activePlayers(room).length < 2) {
+      socket.emit("errorMessage", "2명 이상이어야 시작할 수 있습니다.");
+      return;
+    }
 
     room.status = "playing";
     room.turn = 0;
@@ -257,6 +382,7 @@ io.on("connection", (socket) => {
     room.wrongCount = 0;
     room.gameoverReason = "";
     room.winnerText = "";
+    room.lastNotice = "";
 
     startTurnTimer(roomCode);
   });
@@ -267,9 +393,9 @@ io.on("connection", (socket) => {
 
     word = String(word || "").trim();
 
-    const currentPlayer = room.players[room.turn];
+    const player = currentPlayer(room);
 
-    if (!currentPlayer || currentPlayer.id !== socket.id) {
+    if (!player || player.socketId !== socket.id || player.eliminated) {
       socket.emit("errorMessage", "네 차례가 아닙니다.");
       return;
     }
@@ -279,7 +405,7 @@ io.on("connection", (socket) => {
       socket.emit("errorMessage", `${msg} (${room.wrongCount}/5)`);
 
       if (room.wrongCount >= 5) {
-        gameOver(roomCode, `${currentPlayer.nickname}님이 한 턴에 5번 틀려서 게임오버!`, currentPlayer.id);
+        eliminatePlayer(roomCode, player, "한 턴에 5번 틀림");
       } else {
         sendRoomUpdate(roomCode);
       }
@@ -311,7 +437,6 @@ io.on("connection", (socket) => {
       }
     }
 
-    // 첫 단어만 한방단어 금지
     if (room.usedWords.length === 0 && !hasNextWord(word)) {
       wrong("한방단어는 첫 단어로 사용할 수 없습니다!");
       return;
@@ -319,45 +444,62 @@ io.on("connection", (socket) => {
 
     room.currentWord = word;
     room.usedWords.push(word);
-    room.turn = (room.turn + 1) % room.players.length;
     room.wrongCount = 0;
+    room.lastNotice = "";
+    room.turn = nextActiveTurn(room, room.turn);
 
     setTimeLimitByTurn(room);
     startTurnTimer(roomCode);
   });
 
   socket.on("disconnect", () => {
-    for (const roomCode in rooms) {
-      const room = rooms[roomCode];
-      const oldTurnPlayer = room.players[room.turn];
+    const roomCode = socket.data.roomCode;
+    const playerId = socket.data.playerId;
 
-      room.players = room.players.filter(p => p.id !== socket.id);
+    if (!roomCode || !playerId || !rooms[roomCode]) return;
 
-      if (room.players.length === 0) {
-        stopTimer(room);
-        delete rooms[roomCode];
-      } else {
-        if (room.hostId === socket.id) {
-          room.hostId = room.players[0].id;
-        }
+    const room = rooms[roomCode];
+    const player = findPlayer(room, playerId);
 
-        if (oldTurnPlayer && oldTurnPlayer.id === socket.id) {
-          room.turn = room.turn % room.players.length;
-
-          if (room.status === "playing") {
-            startTurnTimer(roomCode);
-          } else {
-            sendRoomUpdate(roomCode);
-          }
-        } else {
-          if (room.turn >= room.players.length) {
-            room.turn = 0;
-          }
-
-          sendRoomUpdate(roomCode);
-        }
-      }
+    if (player && player.socketId === socket.id) {
+      player.connected = false;
     }
+
+    sendRoomUpdate(roomCode);
+
+    setTimeout(() => {
+      const r = rooms[roomCode];
+      if (!r) return;
+
+      const p = findPlayer(r, playerId);
+
+      if (p && p.connected) return;
+
+      if (r.status === "playing" && p && !p.eliminated) {
+        eliminatePlayer(roomCode, p, "연결 끊김");
+        return;
+      }
+
+      const oldTurnPlayer = r.players[r.turn];
+
+      r.players = r.players.filter(player => player.playerId !== playerId);
+
+      if (r.players.length === 0) {
+        stopTimer(r);
+        delete rooms[roomCode];
+        return;
+      }
+
+      if (r.hostId === playerId) {
+        r.hostId = r.players[0].playerId;
+      }
+
+      if (oldTurnPlayer && oldTurnPlayer.playerId === playerId) {
+        r.turn = r.turn % r.players.length;
+      }
+
+      sendRoomUpdate(roomCode);
+    }, 30000);
   });
 });
 
