@@ -181,6 +181,24 @@
       font-weight: 900;
     }
 
+    .timer-danger {
+      color: #ff5252;
+      animation: blink 0.7s infinite;
+    }
+
+    @keyframes blink {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.08); opacity: 0.55; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .copy-button {
+      padding: 8px 12px;
+      margin-left: 8px;
+      font-size: 13px;
+      box-shadow: 0 5px 0 #c99d00;
+    }
+
     .section-title {
       margin-top: 20px;
       font-size: 18px;
@@ -364,7 +382,10 @@
     <div id="game">
       <div class="wide-layout">
         <div>
-          <div class="info room">🏠 ROOM #<span id="roomCode"></span></div>
+          <div class="info room">
+            🏠 ROOM #<span id="roomCode"></span>
+            <button class="copy-button" onclick="copyRoomCode()">📋 복사</button>
+          </div>
           <div class="info">상태: <span id="status"></span></div>
 
           <div class="word-box">
@@ -514,12 +535,40 @@
     }
 
     function submitWord() {
-      const word = document.getElementById("wordInput").value.trim();
+      const wordInput = document.getElementById("wordInput");
+      const word = wordInput.value.trim();
       if (!word) return;
 
       socket.emit("submitWord", { roomCode: myRoomCode, word });
-      document.getElementById("wordInput").value = "";
+      wordInput.value = "";
+      wordInput.focus();
     }
+
+    function copyRoomCode() {
+      if (!myRoomCode) return;
+
+      navigator.clipboard.writeText(myRoomCode)
+        .then(() => {
+          const message = document.getElementById("message");
+          message.textContent = `방번호 ${myRoomCode} 복사 완료!`;
+
+          setTimeout(() => {
+            if (message.textContent.includes("복사 완료")) {
+              message.textContent = "";
+            }
+          }, 2000);
+        })
+        .catch(() => {
+          alert("복사 실패! 방번호를 직접 복사해 주세요: " + myRoomCode);
+        });
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && document.activeElement.id === "wordInput") {
+        event.preventDefault();
+        submitWord();
+      }
+    });
 
     function sendChat() {
       const chatInput = document.getElementById("chatInput");
@@ -582,7 +631,14 @@
         document.getElementById("nextHint").textContent = "";
       }
 
+      const timerBox = document.querySelector(".timer");
       document.getElementById("timeLimit").textContent = room.timeLeft ?? 20;
+
+      if (room.status === "playing" && (room.timeLeft ?? 20) <= 5) {
+        timerBox.classList.add("timer-danger");
+      } else {
+        timerBox.classList.remove("timer-danger");
+      }
 
       document.getElementById("turnPlayer").textContent =
         room.turnPlayerName ? room.turnPlayerName : "";
@@ -606,10 +662,17 @@
       document.getElementById("startButton").style.display =
         room.status !== "playing" && isHost ? "inline-block" : "none";
 
-      document.getElementById("submitButton").disabled = room.status !== "playing";
-      document.getElementById("wordInput").disabled = room.status !== "playing";
+      const myTurn = room.status === "playing" && room.turnPlayerId === playerId;
+      const wordInput = document.getElementById("wordInput");
+
+      document.getElementById("submitButton").disabled = !myTurn;
+      wordInput.disabled = !myTurn;
       document.getElementById("chatInput").disabled = false;
       document.getElementById("chatSendButton").disabled = false;
+
+      if (myTurn) {
+        wordInput.focus();
+      }
 
       const winnerBox = document.getElementById("winnerBox");
       const winnerName = document.getElementById("winnerName");
