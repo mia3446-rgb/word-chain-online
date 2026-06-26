@@ -171,6 +171,11 @@ function stopTimer(room) {
     clearInterval(room.timer);
     room.timer = null;
   }
+
+  if (room.botTimeout) {
+    clearTimeout(room.botTimeout);
+    room.botTimeout = null;
+  }
 }
 
 function activePlayers(room) {
@@ -300,7 +305,9 @@ function publicRoom(room) {
       socketId: p.socketId,
       nickname: p.nickname,
       connected: p.connected,
-      eliminated: p.eliminated
+      eliminated: p.eliminated,
+      isBot: !!p.isBot,
+      botDifficulty: p.botDifficulty || ""
     })),
     hostId: room.hostId,
     currentWord: room.currentWord,
@@ -449,6 +456,7 @@ function startTurnTimer(roomCode) {
   stopTimer(room);
   room.timeLeft = room.timeLimit;
   sendRoomUpdate(roomCode);
+  scheduleBotTurn(roomCode);
 
   room.timer = setInterval(() => {
     const r = rooms[roomCode];
@@ -519,6 +527,184 @@ function upsertPlayer(room, socket, playerId, nickname) {
   return player;
 }
 
+
+function getBotDelay(difficulty) {
+  if (difficulty === "veryEasy") return 6000 + Math.floor(Math.random() * 4000);
+  if (difficulty === "easy") return 4000 + Math.floor(Math.random() * 3000);
+  if (difficulty === "normal") return 2000 + Math.floor(Math.random() * 2500);
+  if (difficulty === "hard") return 1000 + Math.floor(Math.random() * 1500);
+  if (difficulty === "hell") return 300 + Math.floor(Math.random() * 800);
+  return 3000;
+}
+
+function getNextCount(word) {
+  if (!word) return 0;
+
+  const last = word[word.length - 1];
+  const starts = getDueumStarts(last);
+  let count = 0;
+
+  for (const start of starts) {
+    const words = startMap.get(start) || [];
+    count += words.length;
+  }
+
+  return count;
+}
+
+function getCandidateWords(room) {
+  if (!room.currentWord) return [];
+
+  const last = room.currentWord[room.currentWord.length - 1];
+  const starts = getDueumStarts(last);
+  const usedSet = new Set(room.usedWords || []);
+  usedSet.add(room.startWord);
+
+  const candidates = [];
+  const seen = new Set();
+
+  for (const start of starts) {
+    const words = startMap.get(start) || [];
+
+    for (const word of words) {
+      if (seen.has(word)) continue;
+      seen.add(word);
+
+      if (!isKoreanWord(word)) continue;
+      if (usedSet.has(word)) continue;
+
+      if (room.usedWords.length === 0 && isOneShotWord(word)) continue;
+
+      candidates.push(word);
+
+      if (candidates.length >= 1500) break;
+    }
+
+    if (candidates.length >= 1500) break;
+  }
+
+  return candidates;
+}
+
+function chooseBotWord(room, difficulty) {
+  const candidates = getCandidateWords(room);
+
+  if (candidates.length === 0) return "";
+
+  const safeWords = candidates.filter(word => !isOneShotWord(word));
+  const oneShotWords = candidates.filter(word => isOneShotWord(word));
+
+  if (difficulty === "veryEasy") {
+    const source = safeWords.length > 0 ? safeWords : candidates;
+    return source[Math.floor(Math.random() * Math.min(source.length, 30))];
+  }
+
+  if (difficulty === "easy") {
+    const source = safeWords.length > 0 ? safeWords : candidates;
+    return source[Math.floor(Math.random() * Math.min(source.length, 80))];
+  }
+
+  if (difficulty === "normal") {
+    if (oneShotWords.length > 0 && Math.random() < 0.25) {
+      return oneShotWords[Math.floor(Math.random() * oneShotWords.length)];
+    }
+
+    const source = safeWords.length > 0 ? safeWords : candidates;
+    return source[Math.floor(Math.random() * source.length)];
+  }
+
+  if (difficulty === "hard") {
+    if (oneShotWords.length > 0 && Math.random() < 0.65) {
+      return oneShotWords[Math.floor(Math.random() * oneShotWords.length)];
+    }
+
+    return candidates
+      .slice()
+      .sort((a, b) => getNextCount(a) - getNextCount(b))[0];
+  }
+
+  if (difficulty === "hell") {
+    if (oneShotWords.length > 0) {
+      return oneShotWords[Math.floor(Math.random() * oneShotWords.length)];
+    }
+
+    return candidates
+      .slice()
+      .sort((a, b) => getNextCount(a) - getNextCount(b))[0];
+  }
+
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+function scheduleBotTurn(roomCode) {
+  const room = rooms[roomCode];
+  if (!room || room.status !== "playing") return;
+
+  const player = currentPlayer(room);
+
+  if (!player || !player.isBot || player.eliminated || !player.connected) return;
+
+  const delay = getBotDelay(player.botDifficulty);
+
+  if (room.botTimeout) {
+    clearTimeout(room.botTimeout);
+    room.botTimeout = null;
+  }
+
+  room.botTimeout = setTimeout(() => {
+    const r = rooms[roomCode];
+    if (!r || r.status !== "playing") return;
+
+    const bot = currentPlayer(r);
+
+    if (!bot || !bot.isBot || bot.playerId !== player.playerId || bot.eliminated) return;
+
+    const word = chooseBotWord(r, bot.botDifficulty);
+
+    if (!word) {
+      eliminatePlayer(roomCode, bot, "낼 단어가 없음");
+      return;
+    }
+
+    r.currentWord = word;
+    r.usedWords.push(word);
+    r.wrongCount = 0;
+    r.lastNotice = `🤖 ${bot.nickname}: ${word}`;
+    addSystemMessage(roomCode, `🤖 ${bot.nickname} → ${word}`);
+    r.turn = nextActiveTurn(r, r.turn);
+
+    setTimeLimitByTurn(r);
+    startTurnTimer(roomCode);
+  }, delay);
+}
+
+function addBotsToRoom(room, roomCode, botCount, botDifficulty) {
+  const count = Math.max(0, Math.min(Number(botCount) || 0, 3));
+  const difficulty = botDifficulty || "normal";
+  const names = {
+    veryEasy: ["🤖 졸린봇", "🤖 느림봇", "🤖 초보봇"],
+    easy: ["🤖 쉬운봇", "🤖 연습봇", "🤖 말잇봇"],
+    normal: ["🤖 보통봇", "🤖 단어봇", "🤖 체인봇"],
+    hard: ["🤖 고수봇", "🤖 장인봇", "🤖 공격봇"],
+    hell: ["👿 지옥봇", "👿 끝말귀신", "👿 보스봇"]
+  };
+
+  const pool = names[difficulty] || names.normal;
+
+  for (let i = 0; i < count; i++) {
+    const botId = `bot_${roomCode}_${i}_${Date.now()}`;
+    room.players.push({
+      playerId: botId,
+      socketId: botId,
+      nickname: pool[i % pool.length],
+      connected: true,
+      eliminated: false,
+      isBot: true,
+      botDifficulty: difficulty
+    });
+  }
+}
+
 io.on("connection", (socket) => {
   socket.data.roomCode = null;
   socket.data.playerId = null;
@@ -529,7 +715,7 @@ io.on("connection", (socket) => {
     socket.emit("roomList", makeRoomList());
   });
 
-  socket.on("createRoom", ({ nickname, password, playerId, isPublic }) => {
+  socket.on("createRoom", ({ nickname, password, playerId, isPublic, botCount, botDifficulty }) => {
     if (!nickname || !password || !playerId) {
       socket.emit("errorMessage", "닉네임과 비밀번호를 입력하세요.");
       return;
@@ -555,10 +741,12 @@ io.on("connection", (socket) => {
       winnerText: "",
       lastNotice: "",
       chatMessages: [],
+      botTimeout: null,
       timer: null
     };
 
     upsertPlayer(rooms[roomCode], socket, playerId, nickname);
+    addBotsToRoom(rooms[roomCode], roomCode, botCount, botDifficulty);
 
     socket.data.roomCode = roomCode;
     socket.data.playerId = playerId;
@@ -624,7 +812,9 @@ io.on("connection", (socket) => {
 
     room.players.forEach(p => {
       p.eliminated = false;
-      p.connected = true;
+      if (p.isBot) {
+        p.connected = true;
+      }
     });
 
     if (activePlayers(room).length < 2) {

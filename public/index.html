@@ -401,6 +401,19 @@
               <option value="public">🌍 공개방</option>
               <option value="private">🔒 비공개방</option>
             </select>
+            <select id="botCount">
+              <option value="0">🤖 봇 없음</option>
+              <option value="1">🤖 봇 1명</option>
+              <option value="2">🤖 봇 2명</option>
+              <option value="3">🤖 봇 3명</option>
+            </select>
+            <select id="botDifficulty">
+              <option value="veryEasy">😊 완전 쉬움</option>
+              <option value="easy">🙂 쉬움</option>
+              <option value="normal" selected>😎 중간</option>
+              <option value="hard">🔥 어려움</option>
+              <option value="hell">👿 지옥</option>
+            </select>
             <button onclick="createRoom()">새 방 만들기</button>
           </div>
 
@@ -509,11 +522,13 @@
       const nickname = document.getElementById("nickname").value.trim();
       const password = document.getElementById("roomPassword").value.trim();
       const isPublic = document.getElementById("roomPublic").value === "public";
+      const botCount = Number(document.getElementById("botCount").value);
+      const botDifficulty = document.getElementById("botDifficulty").value;
 
       if (!nickname) return alert("닉네임을 입력하세요.");
       if (!password) return alert("방 비밀번호를 입력하세요.");
 
-      socket.emit("createRoom", { nickname, password, playerId, isPublic });
+      socket.emit("createRoom", { nickname, password, playerId, isPublic, botCount, botDifficulty });
     }
 
     function joinRoom() {
@@ -746,7 +761,7 @@
 
       document.getElementById("players").innerHTML =
         room.players.map((p, index) => {
-          const icon = p.playerId === room.turnPlayerId && room.status === "playing" && !p.eliminated ? "👑" : "⚔️";
+          const icon = p.playerId === room.turnPlayerId && room.status === "playing" && !p.eliminated ? "👑" : (p.isBot ? "🤖" : "⚔️");
           const host = p.playerId === room.hostId ? " 👑방장" : "";
           const offline = p.connected ? "" : " (연결 끊김)";
           const eliminated = p.eliminated ? " 💀탈락" : "";
