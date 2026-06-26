@@ -389,6 +389,8 @@ function publicRoom(room) {
     gameoverReason: room.gameoverReason,
     winnerText: room.winnerText,
     lastNotice: room.lastNotice,
+    notice: room.notice || "",
+    noticeUntil: room.noticeUntil || 0,
     startWord: room.startWord,
     requiredStarts: nextWordInfo.requiredStarts,
     remainingWordCount: nextWordInfo.remainingWordCount,
@@ -465,6 +467,27 @@ function addSystemMessage(roomCode, text) {
   });
 }
 
+function setRoomNotice(roomCode, text, duration = 2500) {
+  const room = rooms[roomCode];
+  if (!room) return;
+
+  room.notice = text;
+  room.noticeUntil = Date.now() + duration;
+
+  sendRoomUpdate(roomCode);
+
+  setTimeout(() => {
+    const r = rooms[roomCode];
+    if (!r) return;
+
+    if (r.notice === text && Date.now() >= r.noticeUntil) {
+      r.notice = "";
+      r.noticeUntil = 0;
+      sendRoomUpdate(roomCode);
+    }
+  }, duration + 100);
+}
+
 function gameOver(roomCode, reason) {
   const room = rooms[roomCode];
   if (!room) return;
@@ -476,6 +499,7 @@ function gameOver(roomCode, reason) {
   room.countdown = 0;
 
   addSystemMessage(roomCode, `🏆 최종 승리: ${room.winnerText}`);
+  setRoomNotice(roomCode, `🏆 최종 승리!\n\n${room.winnerText}`, 5000);
 
   stopTimer(room);
   sendRoomUpdate(roomCode);
@@ -500,6 +524,7 @@ function eliminatePlayer(roomCode, player, reason) {
   room.lastNotice = `${player.nickname} 탈락! ${reason}`;
   addElimination(room, player, reason);
   addSystemMessage(roomCode, `💀 ${player.nickname}님 탈락! (${reason})`);
+  setRoomNotice(roomCode, `💀 탈락!\n\n${player.nickname}\n${reason}`, 3000);
 
   const alive = activePlayers(room);
 
@@ -814,6 +839,7 @@ function beginGame(roomCode) {
   room.eliminationOrder = [];
 
   addSystemMessage(roomCode, `🎮 게임 시작! 시작 단어는 ${startWord}`);
+  setRoomNotice(roomCode, `🎮 게임 시작!\n\n시작 단어: ${startWord}`, 2500);
   startTurnTimer(roomCode);
 }
 
@@ -926,6 +952,8 @@ io.on("connection", (socket) => {
       gameoverReason: "",
       winnerText: "",
       lastNotice: "",
+      notice: "",
+      noticeUntil: 0,
       chatMessages: [],
       readyPlayers: {},
       countdown: 0,
@@ -1064,10 +1092,17 @@ io.on("connection", (socket) => {
     function wrong(msg) {
       room.wrongCount++;
 
-      socket.emit(
-        "errorMessage",
-        `❌ 오답!\n\n${msg}\n\n(${room.wrongCount}/5)`
-      );
+      const chance =
+        room.wrongCount === 4
+          ? "\n\n🚨 마지막 기회!"
+          : room.wrongCount >= 3
+            ? "\n\n⚠️ 조심! 곧 탈락!"
+            : "";
+
+      const noticeText = `❌ 오답!\n\n${msg}\n\n(${room.wrongCount}/5)${chance}`;
+
+      socket.emit("errorMessage", noticeText);
+      setRoomNotice(roomCode, noticeText, 2600);
 
       if (room.wrongCount >= 5) {
         eliminatePlayer(roomCode, player, "한 턴에 5번 틀림");

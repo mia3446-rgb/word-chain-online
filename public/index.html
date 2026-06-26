@@ -135,6 +135,20 @@
       padding-right: 4px;
     }
 
+
+    .notice-box {
+      display: none;
+      background: rgba(255, 82, 82, 0.23);
+      border: 2px solid rgba(255,255,255,0.22);
+      border-radius: 18px;
+      padding: 14px;
+      margin: 12px 0;
+      font-weight: 900;
+      color: #fff176;
+      white-space: pre-line;
+      text-shadow: 0 3px 8px rgba(0,0,0,0.28);
+    }
+
     .word-box {
       margin: 18px 0;
       padding: 28px;
@@ -483,6 +497,7 @@
             <button class="copy-button" onclick="copyRoomCode()">📋 복사</button>
           </div>
           <div class="info">상태: <span id="status"></span></div>
+          <div id="noticeBox" class="notice-box"></div>
 
           <div class="word-box">
             <div class="word-label">현재 단어</div>
@@ -682,6 +697,35 @@
       `;
     }
 
+
+    let localNoticeTimer = null;
+
+    function showNotice(text, duration = 2500) {
+      const noticeBox = document.getElementById("noticeBox");
+      if (!noticeBox) return;
+
+      if (!text) {
+        noticeBox.style.display = "none";
+        noticeBox.textContent = "";
+        return;
+      }
+
+      noticeBox.textContent = text;
+      noticeBox.style.display = "block";
+
+      if (localNoticeTimer) {
+        clearTimeout(localNoticeTimer);
+        localNoticeTimer = null;
+      }
+
+      localNoticeTimer = setTimeout(() => {
+        if (noticeBox.textContent === text) {
+          noticeBox.style.display = "none";
+          noticeBox.textContent = "";
+        }
+      }, duration);
+    }
+
     function submitWord() {
       const wordInput = document.getElementById("wordInput");
       const word = wordInput.value.trim();
@@ -803,6 +847,11 @@
         "🔴 게임오버";
 
       document.getElementById("status").textContent = statusText;
+
+      if (room.notice) {
+        showNotice(room.notice, Math.max(1200, (room.noticeUntil || Date.now() + 2000) - Date.now()));
+      }
+
       document.getElementById("currentWord").textContent = room.currentWord || "없음";
 
       if (room.currentWord && room.nextStarts && room.nextStarts.length > 0) {
@@ -937,14 +986,7 @@
     });
 
     socket.on("errorMessage", (msg) => {
-      const message = document.getElementById("message");
-      message.textContent = msg;
-
-      setTimeout(() => {
-        if (message.textContent === msg && !msg.includes("게임오버")) {
-          message.textContent = "";
-        }
-      }, 3000);
+      showNotice(msg, 2800);
     });
   </script>
 </body>
