@@ -19,7 +19,8 @@ app.use(express.static("public"));
 const rooms = {};
 const wordDB = [];
 const allWords = [];
-const oneShotWords = new Set();
+const startMap = new Map();
+const oneShotCache = new Map();
 
 const wordsDir = path.join(__dirname, "words");
 
@@ -37,16 +38,21 @@ if (fs.existsSync(wordsDir)) {
 
     for (const w of words) {
       allWords.push(w);
+
+      const first = w[0];
+      if (!startMap.has(first)) {
+        startMap.set(first, []);
+      }
+      startMap.get(first).push(w);
     }
   }
 
   console.log(`단어 DB ${files.length}개 파일 불러옴`);
   console.log(`전체 단어 ${allWords.length}개 준비됨`);
+  console.log(`첫 글자 인덱스 ${startMap.size}개 준비됨`);
 } else {
   console.log("words 폴더가 없습니다.");
 }
-
-buildOneShotWords();
 
 function makeRoomCode() {
   let code;
@@ -78,10 +84,12 @@ function getDueumStarts(char) {
 
   const result = [char];
 
+  // ㄴ → ㅇ
   if (cho === 2) {
     result.push(String.fromCharCode(0xac00 + 11 * 588 + rest));
   }
 
+  // ㄹ → ㄴ 또는 ㅇ
   if (cho === 5) {
     result.push(String.fromCharCode(0xac00 + 2 * 588 + rest));
     result.push(String.fromCharCode(0xac00 + 11 * 588 + rest));
@@ -106,52 +114,47 @@ function hasNextWord(word) {
   const last = word[word.length - 1];
   const starts = getDueumStarts(last);
 
-  return starts.some(start => wordDB.some(db => db.includes("/" + start)));
-}
-
-function canContinueFromWord(word) {
-  if (!word) return false;
-
-  const last = word[word.length - 1];
-  const starts = getDueumStarts(last);
-
   for (const start of starts) {
-    for (const db of wordDB) {
-      if (db.includes("/" + start)) {
-        return true;
-      }
+    const words = startMap.get(start);
+    if (words && words.length > 0) {
+      return true;
     }
   }
 
   return false;
 }
 
-function buildOneShotWords() {
-  oneShotWords.clear();
-
-  for (const word of allWords) {
-    if (!isKoreanWord(word)) continue;
-
-    if (!canContinueFromWord(word)) {
-      oneShotWords.add(word);
-    }
+function isOneShotWord(word) {
+  if (oneShotCache.has(word)) {
+    return oneShotCache.get(word);
   }
 
-  console.log(`한방단어 ${oneShotWords.size}개 계산됨`);
-}
-
-function isOneShotWord(word) {
-  return oneShotWords.has(word);
+  const result = !hasNextWord(word);
+  oneShotCache.set(word, result);
+  return result;
 }
 
 function getRandomStartWord() {
-  const candidates = allWords.filter(word => isKoreanWord(word) && !isOneShotWord(word));
-
-  if (candidates.length === 0) {
+  if (allWords.length === 0) {
     return "";
   }
 
-  return candidates[Math.floor(Math.random() * candidates.length)];
+  // 빠른 랜덤 시도: 대부분 여기서 끝남
+  for (let i = 0; i < 200; i++) {
+    const word = allWords[Math.floor(Math.random() * allWords.length)];
+    if (isKoreanWord(word) && !isOneShotWord(word)) {
+      return word;
+    }
+  }
+
+  // 혹시 랜덤으로 계속 한방단어만 걸리면 앞에서부터 안전 단어 탐색
+  for (const word of allWords) {
+    if (isKoreanWord(word) && !isOneShotWord(word)) {
+      return word;
+    }
+  }
+
+  return "";
 }
 
 function stopTimer(room) {
@@ -162,25 +165,52 @@ function stopTimer(room) {
 }
 
 function activePlayers(room) {
-  return room.players.filter(p => !p.eliminated);
+  return room.players.filter(p => !p.eliminated && p.connected);
 }
 
 function findPlayer(room, playerId) {
   return room.players.find(p => p.playerId === playerId);
 }
 
+function normalizeTurn(room) {
+  const alive = activePlayers(room);
+
+  if (alive.length === 0) {
+    room.turn = 0;
+    return null;
+  }
+
+  const current = room.players[room.turn];
+
+  if (current && !current.eliminated && current.connected) {
+    return current;
+  }
+
+  for (let i = 0; i < room.players.length; i++) {
+    const p = room.players[i];
+    if (p && !p.eliminated && p.connected) {
+      room.turn = i;
+      return p;
+    }
+  }
+
+  room.turn = 0;
+  return null;
+}
+
 function currentPlayer(room) {
-  return room.players[room.turn];
+  return normalizeTurn(room);
 }
 
 function nextActiveTurn(room, startIndex) {
-  if (activePlayers(room).length === 0) return 0;
+  const alive = activePlayers(room);
+  if (alive.length === 0) return 0;
 
   for (let i = 1; i <= room.players.length; i++) {
     const idx = (startIndex + i) % room.players.length;
     const p = room.players[idx];
 
-    if (p && !p.eliminated) {
+    if (p && !p.eliminated && p.connected) {
       return idx;
     }
   }
@@ -198,6 +228,8 @@ function getWinnerText(room) {
 }
 
 function publicRoom(room) {
+  normalizeTurn(room);
+
   return {
     players: room.players.map(p => ({
       playerId: p.playerId,
@@ -260,8 +292,35 @@ function sendRoomUpdate(roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
 
+  normalizeTurn(room);
   io.to(roomCode).emit("roomUpdate", publicRoom(room));
   broadcastRoomList();
+}
+
+function addChatMessage(roomCode, message) {
+  const room = rooms[roomCode];
+  if (!room) return;
+
+  if (!room.chatMessages) {
+    room.chatMessages = [];
+  }
+
+  room.chatMessages.push(message);
+
+  if (room.chatMessages.length > 100) {
+    room.chatMessages = room.chatMessages.slice(-100);
+  }
+
+  io.to(roomCode).emit("chatUpdate", room.chatMessages);
+}
+
+function addSystemMessage(roomCode, text) {
+  addChatMessage(roomCode, {
+    type: "system",
+    nickname: "SYSTEM",
+    text,
+    time: Date.now()
+  });
 }
 
 function gameOver(roomCode, reason) {
@@ -271,6 +330,7 @@ function gameOver(roomCode, reason) {
   room.status = "gameover";
   room.gameoverReason = reason;
   room.winnerText = getWinnerText(room);
+
   addSystemMessage(roomCode, `🏆 최종 승리: ${room.winnerText}`);
 
   stopTimer(room);
@@ -312,6 +372,13 @@ function startTurnTimer(roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
 
+  normalizeTurn(room);
+
+  if (room.status === "playing" && activePlayers(room).length <= 1) {
+    gameOver(roomCode, "마지막 1명만 남았습니다!");
+    return;
+  }
+
   stopTimer(room);
   room.timeLeft = room.timeLimit;
   sendRoomUpdate(roomCode);
@@ -321,6 +388,13 @@ function startTurnTimer(roomCode) {
 
     if (!r || r.status !== "playing") {
       if (r) stopTimer(r);
+      return;
+    }
+
+    normalizeTurn(r);
+
+    if (activePlayers(r).length <= 1) {
+      gameOver(roomCode, "마지막 1명만 남았습니다!");
       return;
     }
 
@@ -354,32 +428,6 @@ function setTimeLimitByTurn(room) {
   }
 
   room.timeLeft = room.timeLimit;
-}
-
-function addChatMessage(roomCode, message) {
-  const room = rooms[roomCode];
-  if (!room) return;
-
-  if (!room.chatMessages) {
-    room.chatMessages = [];
-  }
-
-  room.chatMessages.push(message);
-
-  if (room.chatMessages.length > 100) {
-    room.chatMessages = room.chatMessages.slice(-100);
-  }
-
-  io.to(roomCode).emit("chatUpdate", room.chatMessages);
-}
-
-function addSystemMessage(roomCode, text) {
-  addChatMessage(roomCode, {
-    type: "system",
-    nickname: "SYSTEM",
-    text,
-    time: Date.now()
-  });
 }
 
 function upsertPlayer(room, socket, playerId, nickname) {
@@ -535,8 +583,8 @@ io.on("connection", (socket) => {
     room.gameoverReason = "";
     room.winnerText = "";
     room.lastNotice = `🎲 시작 단어: ${startWord}`;
-    addSystemMessage(roomCode, `🎮 게임 시작! 시작 단어는 ${startWord}`);
 
+    addSystemMessage(roomCode, `🎮 게임 시작! 시작 단어는 ${startWord}`);
     startTurnTimer(roomCode);
   });
 
@@ -544,11 +592,12 @@ io.on("connection", (socket) => {
     const room = rooms[roomCode];
     if (!room || room.status !== "playing") return;
 
+    normalizeTurn(room);
     word = String(word || "").trim();
 
     const player = currentPlayer(room);
 
-    if (!player || player.socketId !== socket.id || player.eliminated) {
+    if (!player || player.socketId !== socket.id || player.eliminated || !player.connected) {
       socket.emit("errorMessage", "네 차례가 아닙니다.");
       return;
     }
@@ -653,7 +702,18 @@ io.on("connection", (socket) => {
       if (p && p.connected) return;
 
       if (r.status === "playing" && p && !p.eliminated) {
-        eliminatePlayer(roomCode, p, "연결 끊김");
+        p.eliminated = true;
+        p.connected = false;
+        addSystemMessage(roomCode, `💀 ${p.nickname}님 탈락! (연결 끊김)`);
+
+        if (activePlayers(r).length <= 1) {
+          gameOver(roomCode, `${p.nickname}님이 나가서 게임오버!`);
+          return;
+        }
+
+        resetRoundAfterElimination(r);
+        r.turn = nextActiveTurn(r, r.turn);
+        startTurnTimer(roomCode);
         return;
       }
 
@@ -673,7 +733,7 @@ io.on("connection", (socket) => {
       }
 
       if (oldTurnPlayer && oldTurnPlayer.playerId === playerId) {
-        r.turn = r.turn % r.players.length;
+        r.turn = nextActiveTurn(r, r.turn);
       }
 
       sendRoomUpdate(roomCode);
