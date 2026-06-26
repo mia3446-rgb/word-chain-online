@@ -229,7 +229,7 @@ function getWinnerText(room) {
 
 
 function getNextWordInfo(room) {
-  if (!room.currentWord) {
+  if (room.status !== "playing" || !room.currentWord) {
     return {
       requiredStarts: [],
       remainingWordCount: 0,

@@ -271,6 +271,7 @@
 
 
     .helper-box {
+      display: none;
       background: rgba(0,0,0,0.25);
       border-radius: 16px;
       padding: 12px;
@@ -436,15 +437,7 @@
             <span id="nextHint"></span>
           </div>
 
-          <div class="info timer">⏱ 남은 시간: <span id="timeLimit">20</span>초</div>
-          <div class="info turn-box">🎯 현재 차례<br><span id="turnPlayer"></span></div>
-
-          <button id="startButton" onclick="startGame()">게임 시작</button>
-
-          <input id="wordInput" placeholder="단어 입력" />
-          <button id="submitButton" onclick="submitWord()">제출</button>
-
-          <div class="helper-box">
+          <div class="helper-box" id="helperBox">
             <div class="helper-title">💡 다음 단어 정보</div>
             <div>시작 글자: <span id="requiredStarts">-</span></div>
             <div>남은 단어: <span id="remainingWordCount">0</span>개</div>
@@ -453,6 +446,14 @@
             </div>
             <div id="recommendedWords"></div>
           </div>
+
+          <div class="info timer">⏱ 남은 시간: <span id="timeLimit">20</span>초</div>
+          <div class="info turn-box">🎯 현재 차례<br><span id="turnPlayer"></span></div>
+
+          <button id="startButton" onclick="startGame()">게임 시작</button>
+
+          <input id="wordInput" placeholder="단어 입력" />
+          <button id="submitButton" onclick="submitWord()">제출</button>
 
           <div id="winnerBox">
             🏆 최종 승리
@@ -714,13 +715,22 @@
         document.getElementById("nextHint").textContent = "";
       }
 
-      document.getElementById("requiredStarts").textContent =
-        room.requiredStarts && room.requiredStarts.length > 0 ? room.requiredStarts.join(" / ") : "-";
+      const helperBox = document.getElementById("helperBox");
 
-      document.getElementById("remainingWordCount").textContent = room.remainingWordCount ?? 0;
+      if (room.status === "playing" && room.currentWord) {
+        helperBox.style.display = "block";
 
-      latestRecommendedWords = room.recommendedWords || [];
-      renderRecommendations();
+        document.getElementById("requiredStarts").textContent =
+          room.requiredStarts && room.requiredStarts.length > 0 ? room.requiredStarts.join(" / ") : "-";
+
+        document.getElementById("remainingWordCount").textContent = room.remainingWordCount ?? 0;
+
+        latestRecommendedWords = room.recommendedWords || [];
+        renderRecommendations();
+      } else {
+        helperBox.style.display = "none";
+        latestRecommendedWords = [];
+      }
 
       const timerBox = document.querySelector(".timer");
       document.getElementById("timeLimit").textContent = room.timeLeft ?? 20;
