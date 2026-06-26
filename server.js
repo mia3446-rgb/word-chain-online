@@ -19,6 +19,7 @@ app.use(express.static("public"));
 const rooms = {};
 const wordDB = [];
 const allWords = [];
+const oneShotWords = new Set();
 
 const wordsDir = path.join(__dirname, "words");
 
@@ -44,6 +45,8 @@ if (fs.existsSync(wordsDir)) {
 } else {
   console.log("words 폴더가 없습니다.");
 }
+
+buildOneShotWords();
 
 function makeRoomCode() {
   let code;
@@ -106,8 +109,43 @@ function hasNextWord(word) {
   return starts.some(start => wordDB.some(db => db.includes("/" + start)));
 }
 
+function canContinueFromWord(word) {
+  if (!word) return false;
+
+  const last = word[word.length - 1];
+  const starts = getDueumStarts(last);
+
+  for (const start of starts) {
+    for (const db of wordDB) {
+      if (db.includes("/" + start)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function buildOneShotWords() {
+  oneShotWords.clear();
+
+  for (const word of allWords) {
+    if (!isKoreanWord(word)) continue;
+
+    if (!canContinueFromWord(word)) {
+      oneShotWords.add(word);
+    }
+  }
+
+  console.log(`한방단어 ${oneShotWords.size}개 계산됨`);
+}
+
+function isOneShotWord(word) {
+  return oneShotWords.has(word);
+}
+
 function getRandomStartWord() {
-  const candidates = allWords.filter(word => isKoreanWord(word));
+  const candidates = allWords.filter(word => isKoreanWord(word) && !isOneShotWord(word));
 
   if (candidates.length === 0) {
     return "";
