@@ -269,6 +269,48 @@
       margin-top: 6px;
     }
 
+
+    .helper-box {
+      background: rgba(0,0,0,0.25);
+      border-radius: 16px;
+      padding: 12px;
+      margin: 12px 0;
+      font-weight: 900;
+    }
+
+    .helper-title {
+      color: #ffe066;
+      margin-bottom: 8px;
+    }
+
+    #remainingWordCount {
+      color: #fff176;
+      font-size: 20px;
+    }
+
+    #recommendedWords {
+      margin-top: 8px;
+    }
+
+    .recommend-button {
+      padding: 8px 12px;
+      margin: 4px;
+      font-size: 13px;
+      box-shadow: 0 5px 0 #c99d00;
+    }
+
+    .toggle-row {
+      margin-top: 8px;
+      font-size: 13px;
+      opacity: 0.92;
+    }
+
+    .toggle-row input {
+      width: auto;
+      margin: 0 4px 0 0;
+      padding: 0;
+    }
+
     .chat-box {
       background: rgba(0,0,0,0.25);
       border-radius: 16px;
@@ -401,6 +443,16 @@
 
           <input id="wordInput" placeholder="단어 입력" />
           <button id="submitButton" onclick="submitWord()">제출</button>
+
+          <div class="helper-box">
+            <div class="helper-title">💡 다음 단어 정보</div>
+            <div>시작 글자: <span id="requiredStarts">-</span></div>
+            <div>남은 단어: <span id="remainingWordCount">0</span>개</div>
+            <div class="toggle-row">
+              <label><input type="checkbox" id="recommendToggle" checked onchange="renderRecommendations()"> 추천 단어 보기</label>
+            </div>
+            <div id="recommendedWords"></div>
+          </div>
 
           <div id="winnerBox">
             🏆 최종 승리
@@ -570,6 +622,37 @@
       }
     });
 
+    let latestRecommendedWords = [];
+
+    function fillRecommendedWord(word) {
+      const wordInput = document.getElementById("wordInput");
+      wordInput.value = word;
+      wordInput.focus();
+    }
+
+    function renderRecommendations() {
+      const recommendedWords = document.getElementById("recommendedWords");
+      const toggle = document.getElementById("recommendToggle");
+
+      if (!recommendedWords || !toggle) return;
+
+      if (!toggle.checked) {
+        recommendedWords.innerHTML = "추천 단어 숨김";
+        return;
+      }
+
+      if (!latestRecommendedWords || latestRecommendedWords.length === 0) {
+        recommendedWords.innerHTML = "추천 단어 없음";
+        return;
+      }
+
+      recommendedWords.innerHTML = latestRecommendedWords.map(word =>
+        `<button class="recommend-button" onclick="fillRecommendedWord('${word}')">${word}</button>`
+      ).join("");
+    }
+
+
+
     function sendChat() {
       const chatInput = document.getElementById("chatInput");
       const text = chatInput.value.trim();
@@ -630,6 +713,14 @@
       } else {
         document.getElementById("nextHint").textContent = "";
       }
+
+      document.getElementById("requiredStarts").textContent =
+        room.requiredStarts && room.requiredStarts.length > 0 ? room.requiredStarts.join(" / ") : "-";
+
+      document.getElementById("remainingWordCount").textContent = room.remainingWordCount ?? 0;
+
+      latestRecommendedWords = room.recommendedWords || [];
+      renderRecommendations();
 
       const timerBox = document.querySelector(".timer");
       document.getElementById("timeLimit").textContent = room.timeLeft ?? 20;

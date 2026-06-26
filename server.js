@@ -180,10 +180,6 @@ function normalizeTurn(room) {
     return null;
   }
 
-  if (room.turn < 0 || room.turn >= room.players.length) {
-    room.turn = 0;
-  }
-
   const current = room.players[room.turn];
 
   if (current && !current.eliminated && current.connected) {
@@ -191,11 +187,9 @@ function normalizeTurn(room) {
   }
 
   for (let i = 0; i < room.players.length; i++) {
-    const idx = (room.turn + i) % room.players.length;
-    const p = room.players[idx];
-
+    const p = room.players[i];
     if (p && !p.eliminated && p.connected) {
-      room.turn = idx;
+      room.turn = i;
       return p;
     }
   }
@@ -233,12 +227,62 @@ function getWinnerText(room) {
   return alive.map(p => p.nickname).join(", ");
 }
 
-function publicRoom(room) {
-  const turnPlayer = normalizeTurn(room);
+
+function getNextWordInfo(room) {
+  if (!room.currentWord) {
+    return {
+      requiredStarts: [],
+      remainingWordCount: 0,
+      recommendedWords: []
+    };
+  }
+
+  const last = room.currentWord[room.currentWord.length - 1];
+  const requiredStarts = getDueumStarts(last);
+  const usedSet = new Set(room.usedWords || []);
+  usedSet.add(room.startWord);
+
+  const candidates = [];
+  const seen = new Set();
+
+  for (const start of requiredStarts) {
+    const words = startMap.get(start) || [];
+
+    for (const word of words) {
+      if (seen.has(word)) continue;
+      seen.add(word);
+
+      if (usedSet.has(word)) continue;
+      if (!isKoreanWord(word)) continue;
+
+      candidates.push(word);
+    }
+  }
+
+  const safeWords = candidates.filter(word => !isOneShotWord(word));
+  const source = safeWords.length >= 5 ? safeWords : candidates;
+
+  const recommendedWords = [];
+
+  for (let i = 0; i < source.length && recommendedWords.length < 5; i++) {
+    const word = source[i];
+
+    if (!recommendedWords.includes(word)) {
+      recommendedWords.push(word);
+    }
+  }
 
   return {
-    turnPlayerId: turnPlayer ? turnPlayer.playerId : "",
-    turnPlayerName: turnPlayer ? turnPlayer.nickname : "",
+    requiredStarts,
+    remainingWordCount: candidates.length,
+    recommendedWords
+  };
+}
+
+function publicRoom(room) {
+  normalizeTurn(room);
+
+  return {
     players: room.players.map(p => ({
       playerId: p.playerId,
       socketId: p.socketId,
@@ -259,6 +303,9 @@ function publicRoom(room) {
     winnerText: room.winnerText,
     lastNotice: room.lastNotice,
     startWord: room.startWord,
+    requiredStarts: nextWordInfo.requiredStarts,
+    remainingWordCount: nextWordInfo.remainingWordCount,
+    recommendedWords: nextWordInfo.recommendedWords,
     chatMessages: room.chatMessages || []
   };
 }
