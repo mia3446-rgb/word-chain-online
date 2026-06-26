@@ -280,9 +280,12 @@ function getNextWordInfo(room) {
 }
 
 function publicRoom(room) {
-  normalizeTurn(room);
+  const turnPlayer = normalizeTurn(room);
+  const nextWordInfo = getNextWordInfo(room);
 
   return {
+    turnPlayerId: turnPlayer ? turnPlayer.playerId : "",
+    turnPlayerName: turnPlayer ? turnPlayer.nickname : "",
     players: room.players.map(p => ({
       playerId: p.playerId,
       socketId: p.socketId,
