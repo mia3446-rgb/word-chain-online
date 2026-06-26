@@ -1304,7 +1304,7 @@ io.on("connection", (socket) => {
     }
 
     if (!password || !playerId) {
-      socket.emit("errorMessage", "방 비밀번호를 입력하세요.");
+      socket.emit("errorMessage", "방 입장 비밀번호를 입력하세요.");
       return;
     }
 
@@ -1369,7 +1369,7 @@ io.on("connection", (socket) => {
     }
 
     if (!password || !playerId) {
-      socket.emit("errorMessage", "방번호와 비밀번호를 입력하세요.");
+      socket.emit("errorMessage", "방번호와 방 비밀번호를 입력하세요.");
       return;
     }
 

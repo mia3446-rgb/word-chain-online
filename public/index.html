@@ -72,6 +72,34 @@
       align-items: start;
     }
 
+    .field-label {
+      width: 85%;
+      margin: 10px auto -2px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 900;
+      color: #fff176;
+    }
+
+    .password-row {
+      width: 85%;
+      margin: 8px auto;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .password-row input {
+      width: 100%;
+      margin: 0;
+    }
+
+    .eye-button {
+      padding: 13px 14px;
+      margin: 0;
+      box-shadow: 0 5px 0 #c99d00;
+    }
+
     input, select {
       width: 85%;
       padding: 15px;
@@ -533,8 +561,13 @@
     <div id="authBox" class="auth-box">
       <div class="info">
         <h3>🔐 로그인 / 회원가입</h3>
+        <div class="field-label">계정 닉네임</div>
         <input id="authNickname" placeholder="닉네임 2~12자" />
-        <input id="authPassword" placeholder="비밀번호 4자 이상" type="password" />
+        <div class="field-label">계정 비밀번호</div>
+        <div class="password-row">
+          <input id="authPassword" placeholder="비밀번호 4자 이상" type="password" />
+          <button class="eye-button" onclick="togglePassword('authPassword')">👁️</button>
+        </div>
         <div class="auth-tabs">
           <button onclick="login()">로그인</button>
           <button onclick="register()">회원가입</button>
@@ -554,7 +587,11 @@
         <div>
           <div class="info">
             <h3>🏠 방 만들기</h3>
-            <input id="roomPassword" placeholder="방 비밀번호 입력" />
+            <div class="field-label">방 입장 비밀번호</div>
+            <div class="password-row">
+              <input id="roomPassword" placeholder="친구가 방에 들어올 때 필요한 비밀번호" type="password" />
+              <button class="eye-button" onclick="togglePassword('roomPassword')">👁️</button>
+            </div>
             <select id="roomPublic">
               <option value="public">🌍 공개방</option>
               <option value="private">🔒 비공개방</option>
@@ -578,7 +615,11 @@
           <div class="info">
             <h3>🚪 방번호로 참가</h3>
             <input id="roomCodeInput" placeholder="방번호 입력" />
-            <input id="joinPassword" placeholder="비밀번호 입력" />
+            <div class="field-label">방 입장 비밀번호</div>
+            <div class="password-row">
+              <input id="joinPassword" placeholder="방 비밀번호 입력" type="password" />
+              <button class="eye-button" onclick="togglePassword('joinPassword')">👁️</button>
+            </div>
             <button onclick="joinRoom()">방 참가하기</button>
           </div>
         </div>
@@ -706,6 +747,12 @@
       socket.emit("register", { nickname, password });
     }
 
+    function togglePassword(id) {
+      const input = document.getElementById(id);
+      input.type = input.type === "password" ? "text" : "password";
+      input.focus();
+    }
+
     function login() {
       const nickname = document.getElementById("authNickname").value.trim();
       const password = document.getElementById("authPassword").value;
@@ -741,7 +788,7 @@
       const botDifficulty = document.getElementById("botDifficulty").value;
 
       if (!currentUserNickname) return alert("로그인 먼저 해주세요.");
-      if (!password) return alert("방 비밀번호를 입력하세요.");
+      if (!password) return alert("방 입장 비밀번호를 입력하세요.");
 
       socket.emit("createRoom", { password, playerId, isPublic, botCount, botDifficulty });
     }
@@ -759,7 +806,7 @@
       }
 
       if (!password) {
-        return alert("비밀번호를 입력하세요.");
+        return alert("방 입장 비밀번호를 입력하세요.");
       }
 
       myRoomCode = roomCode;
@@ -954,6 +1001,11 @@
       if (event.key === "Enter" && document.activeElement.id === "wordInput") {
         event.preventDefault();
         submitWord();
+      }
+
+      if (event.key === "Enter" && document.activeElement.id === "authPassword") {
+        event.preventDefault();
+        login();
       }
     });
 
