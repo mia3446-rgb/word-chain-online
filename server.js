@@ -697,6 +697,36 @@ function getCandidateWords(room) {
   return candidates;
 }
 
+
+function pickRandomFrom(source, limit = source.length) {
+  if (!source || source.length === 0) return "";
+
+  const max = Math.max(1, Math.min(source.length, limit));
+  return source[Math.floor(Math.random() * max)];
+}
+
+function getWordScoreForAttack(word) {
+  // 점수가 낮을수록 상대가 이어가기 어려운 단어
+  return getNextCount(word);
+}
+
+function getEasyWordScore(word) {
+  // 쉬운 봇은 짧고, 다음 단어가 많은 안전한 단어를 선호
+  const lengthPenalty = word.length * 10;
+  const safetyBonus = Math.min(getNextCount(word), 80);
+  const oneShotPenalty = isOneShotWord(word) ? 1000 : 0;
+
+  return lengthPenalty - safetyBonus + oneShotPenalty;
+}
+
+function getNormalWordScore(word) {
+  // 중간 봇은 너무 위험하지 않은 단어를 고르되, 약간 공격성 있음
+  const nextCount = getNextCount(word);
+  const lengthPenalty = word.length * 2;
+
+  return Math.abs(nextCount - 30) + lengthPenalty;
+}
+
 function chooseBotWord(room, difficulty) {
   const candidates = getCandidateWords(room);
 
@@ -706,59 +736,81 @@ function chooseBotWord(room, difficulty) {
   const oneShotWords = candidates.filter(word => isOneShotWord(word));
 
   if (difficulty === "veryEasy") {
-    // 완전 쉬움: 2~3글자 안전 단어 위주, 가끔 실수
-    if (Math.random() < 0.18) return "";
+    // 완전 쉬움: 짧고 쉬운 단어 위주, 아주 가끔 실수
+    if (Math.random() < 0.05) return "";
 
-    const shortSafe = safeWords.filter(word => word.length >= 2 && word.length <= 3);
-    const source = shortSafe.length > 0 ? shortSafe : (safeWords.length > 0 ? safeWords : candidates);
-    const limit = Math.min(source.length, 40);
+    const shortSafe = safeWords
+      .filter(word => word.length >= 2 && word.length <= 3)
+      .sort((a, b) => getEasyWordScore(a) - getEasyWordScore(b));
 
-    return source[Math.floor(Math.random() * limit)];
+    const source = shortSafe.length > 0
+      ? shortSafe
+      : safeWords.slice().sort((a, b) => getEasyWordScore(a) - getEasyWordScore(b));
+
+    return pickRandomFrom(source.length > 0 ? source : candidates, 25);
   }
 
   if (difficulty === "easy") {
-    // 쉬움: 2~4글자 안전 단어 위주, 아주 가끔 실수
-    if (Math.random() < 0.08) return "";
+    // 쉬움: 2~4글자 안전 단어, 가끔 좋은 수
+    if (Math.random() < 0.02) return "";
 
-    const shortSafe = safeWords.filter(word => word.length >= 2 && word.length <= 4);
-    const source = shortSafe.length > 0 ? shortSafe : (safeWords.length > 0 ? safeWords : candidates);
-    const limit = Math.min(source.length, 80);
+    const easyWords = safeWords
+      .filter(word => word.length >= 2 && word.length <= 4)
+      .sort((a, b) => getEasyWordScore(a) - getEasyWordScore(b));
 
-    return source[Math.floor(Math.random() * limit)];
+    const source = easyWords.length > 0
+      ? easyWords
+      : safeWords.slice().sort((a, b) => getEasyWordScore(a) - getEasyWordScore(b));
+
+    return pickRandomFrom(source.length > 0 ? source : candidates, 50);
   }
 
   if (difficulty === "normal") {
-    // 중간: 2~5글자 위주, 가끔 한방단어 사용
-    if (oneShotWords.length > 0 && Math.random() < 0.25) {
-      return oneShotWords[Math.floor(Math.random() * oneShotWords.length)];
+    // 중간: 사람처럼 평범하게, 가끔 한방단어
+    if (oneShotWords.length > 0 && Math.random() < 0.18) {
+      return pickRandomFrom(oneShotWords, 20);
     }
 
-    const normalWords = safeWords.filter(word => word.length >= 2 && word.length <= 5);
-    const source = normalWords.length > 0 ? normalWords : (safeWords.length > 0 ? safeWords : candidates);
-    return source[Math.floor(Math.random() * source.length)];
+    const normalWords = safeWords
+      .filter(word => word.length >= 2 && word.length <= 5)
+      .sort((a, b) => getNormalWordScore(a) - getNormalWordScore(b));
+
+    const source = normalWords.length > 0 ? normalWords : safeWords;
+
+    return pickRandomFrom(source.length > 0 ? source : candidates, 80);
   }
 
   if (difficulty === "hard") {
+    // 어려움: 한방단어 적극 사용, 없으면 상대가 힘든 단어 선택
     if (oneShotWords.length > 0 && Math.random() < 0.65) {
-      return oneShotWords[Math.floor(Math.random() * oneShotWords.length)];
+      return pickRandomFrom(oneShotWords, oneShotWords.length);
     }
 
-    return candidates
+    const sorted = candidates
       .slice()
-      .sort((a, b) => getNextCount(a) - getNextCount(b))[0];
+      .sort((a, b) => getWordScoreForAttack(a) - getWordScoreForAttack(b));
+
+    return pickRandomFrom(sorted, Math.min(20, sorted.length));
   }
 
   if (difficulty === "hell") {
+    // 지옥: 한방단어가 있으면 즉시 사용, 아니면 가장 불리한 수 선택
     if (oneShotWords.length > 0) {
-      return oneShotWords[Math.floor(Math.random() * oneShotWords.length)];
+      return oneShotWords
+        .slice()
+        .sort((a, b) => a.length - b.length)[0];
     }
 
     return candidates
       .slice()
-      .sort((a, b) => getNextCount(a) - getNextCount(b))[0];
+      .sort((a, b) => {
+        const scoreDiff = getWordScoreForAttack(a) - getWordScoreForAttack(b);
+        if (scoreDiff !== 0) return scoreDiff;
+        return a.length - b.length;
+      })[0];
   }
 
-  return candidates[Math.floor(Math.random() * candidates.length)];
+  return pickRandomFrom(candidates);
 }
 
 function scheduleBotTurn(roomCode) {
@@ -807,11 +859,11 @@ function addBotsToRoom(room, roomCode, botCount, botDifficulty) {
   const count = Math.max(0, Math.min(Number(botCount) || 0, 3));
   const difficulty = botDifficulty || "normal";
   const names = {
-    veryEasy: ["🤖 졸린봇", "🤖 느림봇", "🤖 초보봇"],
-    easy: ["🤖 쉬운봇", "🤖 연습봇", "🤖 말잇봇"],
+    veryEasy: ["🤖 초보봇", "🤖 졸린봇", "🤖 느림봇"],
+    easy: ["🤖 연습봇", "🤖 쉬운봇", "🤖 말잇봇"],
     normal: ["🤖 보통봇", "🤖 단어봇", "🤖 체인봇"],
-    hard: ["🤖 고수봇", "🤖 장인봇", "🤖 공격봇"],
-    hell: ["👿 지옥봇", "👿 끝말귀신", "👿 보스봇"]
+    hard: ["🔥 공격봇", "🔥 고수봇", "🔥 전략봇"],
+    hell: ["👿 끝말귀신", "👿 지옥봇", "👿 보스봇"]
   };
 
   const pool = names[difficulty] || names.normal;
