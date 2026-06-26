@@ -418,6 +418,46 @@
       color: #ffe066;
     }
 
+
+    .profile-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 999;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .profile-card {
+      width: min(420px, 88vw);
+      background: rgba(30,30,60,0.96);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 20px 70px rgba(0,0,0,0.45);
+      border: 2px solid rgba(255,255,255,0.18);
+      font-weight: 900;
+    }
+
+    .profile-card h2 {
+      margin: 0 0 12px;
+      color: #fff176;
+    }
+
+    .profile-row {
+      background: rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 10px;
+      margin: 7px 0;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .profile-close {
+      margin-top: 14px;
+    }
+
     @media (max-width: 720px) {
       .card {
         width: 92vw;
@@ -558,6 +598,14 @@
     <p id="message"></p>
   </div>
 
+  <div id="profileModal" class="profile-modal">
+    <div class="profile-card">
+      <h2 id="profileName">프로필</h2>
+      <div id="profileContent"></div>
+      <button class="profile-close" onclick="closeProfile()">닫기</button>
+    </div>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io(window.location.origin, {
@@ -680,10 +728,47 @@
       return `${m}분 ${s}초`;
     }
 
+
+    function openProfileByNickname(nickname) {
+      socket.emit("getProfile", { nickname });
+    }
+
+    function closeProfile() {
+      document.getElementById("profileModal").style.display = "none";
+    }
+
+    function showProfile(profile) {
+      const modal = document.getElementById("profileModal");
+      const name = document.getElementById("profileName");
+      const content = document.getElementById("profileContent");
+
+      name.textContent = `${profile.selectedTitle || ""} ${profile.nickname}`;
+
+      content.innerHTML = `
+        <div class="profile-row"><span>⭐ 레벨</span><span>Lv.${profile.level}</span></div>
+        <div class="profile-row"><span>✨ 경험치</span><span>${profile.xp} / ${profile.nextXp}</span></div>
+        <div class="profile-row"><span>💰 코인</span><span>${profile.coins}</span></div>
+        <div class="profile-row"><span>🏆 승리</span><span>${profile.wins}</span></div>
+        <div class="profile-row"><span>💀 패배</span><span>${profile.losses}</span></div>
+        <div class="profile-row"><span>📈 승률</span><span>${profile.winRate}%</span></div>
+        <div class="profile-row"><span>🔥 현재 연승</span><span>${profile.currentWinStreak}</span></div>
+        <div class="profile-row"><span>👑 최고 연승</span><span>${profile.bestWinStreak}</span></div>
+        <div class="profile-row"><span>📝 사용 단어</span><span>${profile.wordsUsed}</span></div>
+        <div class="profile-row"><span>🎖 칭호</span><span>${(profile.titles || []).join(", ")}</span></div>
+      `;
+
+      modal.style.display = "flex";
+    }
+
     function renderMatchResult(room) {
       const resultBox = document.getElementById("resultBox");
       const result = room.matchResult || {};
       const order = result.eliminationOrder || [];
+      const rewards = result.rewards || [];
+
+      const rewardHtml = rewards.length > 0
+        ? rewards.map(item => `<div>${item.result === "win" ? "🏆" : "💀"} ${item.nickname}: +${item.xp}XP / +${item.coins}코인${item.leveledUp ? " 🎉 LEVEL UP!" : ""}</div>`).join("")
+        : "<div>보상 정보 없음</div>";
 
       const orderHtml = order.length > 0
         ? order.map((item, index) => `<div>${index + 1}. ${item.nickname} - ${item.reason}</div>`).join("")
@@ -692,6 +777,8 @@
       resultBox.innerHTML = `
         <div>⏱ 경기 시간: ${formatDuration(result.durationSec || 0)}</div>
         <div>📝 사용 단어: ${result.usedWordCount || 0}개</div>
+        <div>🎁 보상</div>
+        ${rewardHtml}
         <div>💀 탈락 순서</div>
         ${orderHtml}
       `;
@@ -900,7 +987,9 @@
             (p.connected ? "" : "disconnected ") +
             (p.eliminated ? "eliminated" : "");
 
-          return `<li class="${cls.trim()}">${icon} ${p.nickname}${host}${offline}${eliminated}${ready}</li>`;
+          const profileText = p.profile ? ` Lv.${p.profile.level} ${p.profile.selectedTitle || ""}` : "";
+          const click = p.isBot ? "" : `onclick="openProfileByNickname('${p.nickname}')" style="cursor:pointer"`;
+          return `<li class="${cls.trim()}" ${click}>${icon}${profileText} ${p.nickname}${host}${offline}${eliminated}${ready}</li>`;
         }).join("");
 
       document.getElementById("usedWords").innerHTML =
@@ -962,6 +1051,10 @@
           document.getElementById("message").textContent = room.lastNotice;
         }
       }
+    });
+
+    socket.on("profileData", (profile) => {
+      showProfile(profile);
     });
 
     socket.on("chatUpdate", (messages) => {

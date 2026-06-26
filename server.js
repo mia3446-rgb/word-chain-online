@@ -22,6 +22,121 @@ const allWords = [];
 const startMap = new Map();
 const oneShotCache = new Map();
 
+const playersFile = path.join(__dirname, "players.json");
+let playerData = {};
+
+function loadPlayerData() {
+  try {
+    if (fs.existsSync(playersFile)) {
+      playerData = JSON.parse(fs.readFileSync(playersFile, "utf8"));
+      console.log(`플레이어 데이터 ${Object.keys(playerData).length}명 불러옴`);
+    }
+  } catch (err) {
+    console.log("플레이어 데이터 로드 실패:", err.message);
+    playerData = {};
+  }
+}
+
+function savePlayerData() {
+  try {
+    fs.writeFileSync(playersFile, JSON.stringify(playerData, null, 2), "utf8");
+  } catch (err) {
+    console.log("플레이어 데이터 저장 실패:", err.message);
+  }
+}
+
+function safePlayerKey(nickname) {
+  return String(nickname || "unknown").trim().slice(0, 30) || "unknown";
+}
+
+function getDefaultProfile(nickname) {
+  return {
+    nickname,
+    level: 1,
+    xp: 0,
+    coins: 0,
+    wins: 0,
+    losses: 0,
+    games: 0,
+    currentWinStreak: 0,
+    bestWinStreak: 0,
+    wordsUsed: 0,
+    titles: ["🌱 초보자"],
+    selectedTitle: "🌱 초보자"
+  };
+}
+
+function getNextLevelXp(level) {
+  return 100 + (Math.max(1, level) - 1) * 50;
+}
+
+function ensureProfile(nickname) {
+  const key = safePlayerKey(nickname);
+
+  if (!playerData[key]) {
+    playerData[key] = getDefaultProfile(key);
+  }
+
+  return playerData[key];
+}
+
+function addXp(profile, amount) {
+  profile.xp += amount;
+
+  let leveledUp = false;
+
+  while (profile.xp >= getNextLevelXp(profile.level)) {
+    profile.xp -= getNextLevelXp(profile.level);
+    profile.level++;
+    leveledUp = true;
+  }
+
+  return leveledUp;
+}
+
+function updateTitles(profile) {
+  if (profile.wins >= 1 && !profile.titles.includes("🏆 첫 승")) {
+    profile.titles.push("🏆 첫 승");
+  }
+
+  if (profile.wordsUsed >= 100 && !profile.titles.includes("📚 단어왕")) {
+    profile.titles.push("📚 단어왕");
+  }
+
+  if (profile.bestWinStreak >= 3 && !profile.titles.includes("🔥 연승러")) {
+    profile.titles.push("🔥 연승러");
+  }
+
+  if (profile.wins >= 10 && !profile.titles.includes("👑 끝말장인")) {
+    profile.titles.push("👑 끝말장인");
+  }
+}
+
+function publicProfile(nickname) {
+  const profile = ensureProfile(nickname);
+  const nextXp = getNextLevelXp(profile.level);
+  const winRate = profile.games > 0 ? Math.round((profile.wins / profile.games) * 100) : 0;
+
+  return {
+    nickname: profile.nickname,
+    level: profile.level,
+    xp: profile.xp,
+    nextXp,
+    coins: profile.coins,
+    wins: profile.wins,
+    losses: profile.losses,
+    games: profile.games,
+    winRate,
+    currentWinStreak: profile.currentWinStreak,
+    bestWinStreak: profile.bestWinStreak,
+    wordsUsed: profile.wordsUsed,
+    selectedTitle: profile.selectedTitle || "",
+    titles: profile.titles || []
+  };
+}
+
+loadPlayerData();
+
 const wordsDir = path.join(__dirname, "words");
 
 if (fs.existsSync(wordsDir)) {
@@ -334,7 +449,8 @@ function getMatchResult(room) {
     winnerText: room.winnerText || "",
     durationSec,
     usedWordCount: room.usedWords ? room.usedWords.length : 0,
-    eliminationOrder: room.eliminationOrder || []
+    eliminationOrder: room.eliminationOrder || [],
+    rewards: room.rewards || []
   };
 }
 
@@ -375,7 +491,8 @@ function publicRoom(room) {
       connected: p.connected,
       eliminated: p.eliminated,
       isBot: !!p.isBot,
-      botDifficulty: p.botDifficulty || ""
+      botDifficulty: p.botDifficulty || "",
+      profile: p.isBot ? null : publicProfile(p.nickname)
     })),
     hostId: room.hostId,
     currentWord: room.currentWord,
@@ -503,6 +620,59 @@ function setRoomNotice(roomCode, text, duration = 2500) {
   }, duration + 100);
 }
 
+
+function applyMatchRewards(room) {
+  if (!room || room.statsApplied) return;
+
+  room.statsApplied = true;
+  room.rewards = [];
+
+  const winnerNames = (room.winnerText || "")
+    .split(",")
+    .map(name => name.trim())
+    .filter(Boolean);
+
+  for (const player of room.players) {
+    if (player.isBot) continue;
+
+    const profile = ensureProfile(player.nickname);
+    const isWinner = winnerNames.includes(player.nickname);
+
+    profile.games++;
+
+    let xpGain = 0;
+    let coinGain = 0;
+
+    if (isWinner) {
+      profile.wins++;
+      profile.currentWinStreak++;
+      profile.bestWinStreak = Math.max(profile.bestWinStreak, profile.currentWinStreak);
+      xpGain += 100;
+      coinGain += 50;
+    } else {
+      profile.losses++;
+      profile.currentWinStreak = 0;
+      xpGain += 40;
+      coinGain += 20;
+    }
+
+    const leveledUp = addXp(profile, xpGain);
+    profile.coins += coinGain;
+    updateTitles(profile);
+
+    room.rewards.push({
+      nickname: player.nickname,
+      result: isWinner ? "win" : "loss",
+      xp: xpGain,
+      coins: coinGain,
+      level: profile.level,
+      leveledUp
+    });
+  }
+
+  savePlayerData();
+}
+
 function gameOver(roomCode, reason) {
   const room = rooms[roomCode];
   if (!room) return;
@@ -511,6 +681,7 @@ function gameOver(roomCode, reason) {
   room.gameoverReason = reason;
   room.winnerText = getWinnerText(room);
   room.matchEndedAt = Date.now();
+  applyMatchRewards(room);
   room.countdown = 0;
 
   addSystemMessage(roomCode, `🏆 최종 승리: ${room.winnerText}`);
@@ -918,6 +1089,8 @@ function beginGame(roomCode) {
   room.matchStartedAt = Date.now();
   room.matchEndedAt = 0;
   room.eliminationOrder = [];
+  room.rewards = [];
+  room.statsApplied = false;
 
   addSystemMessage(roomCode, `🎮 게임 시작! 시작 단어는 ${startWord}`);
   setRoomNotice(roomCode, `🎮 게임 시작!\n\n시작 단어: ${startWord}`, 2500);
@@ -983,6 +1156,8 @@ function prepareRematch(roomCode) {
   room.lastNotice = "🔄 재경기 준비 중!";
   room.countdown = 0;
   room.matchEndedAt = 0;
+  room.rewards = [];
+  room.statsApplied = false;
 
   room.players.forEach(p => {
     if (p.connected || p.isBot) {
@@ -1043,6 +1218,8 @@ io.on("connection", (socket) => {
       matchStartedAt: 0,
       matchEndedAt: 0,
       eliminationOrder: [],
+      rewards: [],
+      statsApplied: false,
       timer: null
     };
 
@@ -1225,12 +1402,25 @@ io.on("connection", (socket) => {
 
     room.currentWord = word;
     room.usedWords.push(word);
+
+    if (!player.isBot) {
+      const profile = ensureProfile(player.nickname);
+      profile.wordsUsed++;
+      addXp(profile, 1);
+      updateTitles(profile);
+      savePlayerData();
+    }
+
     room.wrongCount = 0;
     room.lastNotice = "";
     room.turn = nextActiveTurn(room, room.turn);
 
     setTimeLimitByTurn(room);
     startTurnTimer(roomCode);
+  });
+
+  socket.on("getProfile", ({ nickname }) => {
+    socket.emit("profileData", publicProfile(nickname));
   });
 
   socket.on("sendChat", ({ roomCode, text }) => {
