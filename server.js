@@ -399,7 +399,22 @@ function publicRoom(room) {
   };
 }
 
+
+function cleanupBotOnlyRooms() {
+  for (const code of Object.keys(rooms)) {
+    const room = rooms[code];
+    const humanCount = room.players.filter(p => !p.isBot && p.connected).length;
+
+    if (humanCount === 0) {
+      stopTimer(room);
+      delete rooms[code];
+    }
+  }
+}
+
 function makeRoomList() {
+  cleanupBotOnlyRooms();
+
   const list = Object.keys(rooms).map(code => {
     const room = rooms[code];
     const host = room.players.find(p => p.playerId === room.hostId);
@@ -691,21 +706,35 @@ function chooseBotWord(room, difficulty) {
   const oneShotWords = candidates.filter(word => isOneShotWord(word));
 
   if (difficulty === "veryEasy") {
-    const source = safeWords.length > 0 ? safeWords : candidates;
-    return source[Math.floor(Math.random() * Math.min(source.length, 30))];
+    // 완전 쉬움: 2~3글자 안전 단어 위주, 가끔 실수
+    if (Math.random() < 0.18) return "";
+
+    const shortSafe = safeWords.filter(word => word.length >= 2 && word.length <= 3);
+    const source = shortSafe.length > 0 ? shortSafe : (safeWords.length > 0 ? safeWords : candidates);
+    const limit = Math.min(source.length, 40);
+
+    return source[Math.floor(Math.random() * limit)];
   }
 
   if (difficulty === "easy") {
-    const source = safeWords.length > 0 ? safeWords : candidates;
-    return source[Math.floor(Math.random() * Math.min(source.length, 80))];
+    // 쉬움: 2~4글자 안전 단어 위주, 아주 가끔 실수
+    if (Math.random() < 0.08) return "";
+
+    const shortSafe = safeWords.filter(word => word.length >= 2 && word.length <= 4);
+    const source = shortSafe.length > 0 ? shortSafe : (safeWords.length > 0 ? safeWords : candidates);
+    const limit = Math.min(source.length, 80);
+
+    return source[Math.floor(Math.random() * limit)];
   }
 
   if (difficulty === "normal") {
+    // 중간: 2~5글자 위주, 가끔 한방단어 사용
     if (oneShotWords.length > 0 && Math.random() < 0.25) {
       return oneShotWords[Math.floor(Math.random() * oneShotWords.length)];
     }
 
-    const source = safeWords.length > 0 ? safeWords : candidates;
+    const normalWords = safeWords.filter(word => word.length >= 2 && word.length <= 5);
+    const source = normalWords.length > 0 ? normalWords : (safeWords.length > 0 ? safeWords : candidates);
     return source[Math.floor(Math.random() * source.length)];
   }
 
@@ -1199,6 +1228,15 @@ io.on("connection", (socket) => {
     setTimeout(() => {
       const r = rooms[roomCode];
       if (!r) return;
+
+      const humanCount = r.players.filter(player => !player.isBot && player.connected).length;
+
+      if (humanCount === 0) {
+        stopTimer(r);
+        delete rooms[roomCode];
+        broadcastRoomList();
+        return;
+      }
 
       const p = findPlayer(r, playerId);
 
