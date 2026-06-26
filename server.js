@@ -3,6 +3,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 const app = express();
 const server = http.createServer(app);
@@ -45,6 +46,31 @@ function savePlayerData() {
   }
 }
 
+
+function makeSalt() {
+  return crypto.randomBytes(16).toString("hex");
+}
+
+function makeToken() {
+  return crypto.randomBytes(24).toString("hex");
+}
+
+function hashPassword(password, salt) {
+  return crypto
+    .createHash("sha256")
+    .update(String(password) + salt)
+    .digest("hex");
+}
+
+function isValidNickname(nickname) {
+  return /^[가-힣a-zA-Z0-9_]{2,12}$/.test(String(nickname || ""));
+}
+
+function isValidPassword(password) {
+  return String(password || "").length >= 4 && String(password || "").length <= 30;
+}
+
+
 function safePlayerKey(nickname) {
   return String(nickname || "unknown").trim().slice(0, 30) || "unknown";
 }
@@ -52,6 +78,10 @@ function safePlayerKey(nickname) {
 function getDefaultProfile(nickname) {
   return {
     nickname,
+    passwordHash: "",
+    salt: "",
+    sessionToken: "",
+    createdAt: Date.now(),
     level: 1,
     xp: 0,
     coins: 0,
@@ -1183,9 +1213,98 @@ io.on("connection", (socket) => {
     socket.emit("roomList", makeRoomList());
   });
 
-  socket.on("createRoom", ({ nickname, password, playerId, isPublic, botCount, botDifficulty }) => {
-    if (!nickname || !password || !playerId) {
-      socket.emit("errorMessage", "닉네임과 비밀번호를 입력하세요.");
+  socket.on("register", ({ nickname, password }) => {
+    nickname = safePlayerKey(nickname);
+
+    if (!isValidNickname(nickname)) {
+      socket.emit("authError", "닉네임은 2~12자 한글/영어/숫자/_ 만 가능!");
+      return;
+    }
+
+    if (!isValidPassword(password)) {
+      socket.emit("authError", "비밀번호는 4~30자로 입력!");
+      return;
+    }
+
+    if (playerData[nickname]) {
+      socket.emit("authError", "이미 사용 중인 닉네임입니다.");
+      return;
+    }
+
+    const profile = getDefaultProfile(nickname);
+    profile.salt = makeSalt();
+    profile.passwordHash = hashPassword(password, profile.salt);
+    profile.sessionToken = makeToken();
+
+    playerData[nickname] = profile;
+    savePlayerData();
+
+    socket.data.nickname = nickname;
+    socket.emit("authSuccess", {
+      nickname,
+      token: profile.sessionToken,
+      profile: publicProfile(nickname)
+    });
+  });
+
+  socket.on("login", ({ nickname, password }) => {
+    nickname = safePlayerKey(nickname);
+    const profile = playerData[nickname];
+
+    if (!profile || !profile.passwordHash || !profile.salt) {
+      socket.emit("authError", "존재하지 않는 닉네임입니다.");
+      return;
+    }
+
+    if (hashPassword(password, profile.salt) !== profile.passwordHash) {
+      socket.emit("authError", "비밀번호가 틀렸습니다.");
+      return;
+    }
+
+    profile.sessionToken = makeToken();
+    savePlayerData();
+
+    socket.data.nickname = nickname;
+    socket.emit("authSuccess", {
+      nickname,
+      token: profile.sessionToken,
+      profile: publicProfile(nickname)
+    });
+  });
+
+  socket.on("autoLogin", ({ nickname, token }) => {
+    nickname = safePlayerKey(nickname);
+    const profile = playerData[nickname];
+
+    if (!profile || !token || profile.sessionToken !== token) {
+      socket.emit("authError", "자동 로그인 실패");
+      return;
+    }
+
+    socket.data.nickname = nickname;
+    socket.emit("authSuccess", {
+      nickname,
+      token: profile.sessionToken,
+      profile: publicProfile(nickname)
+    });
+  });
+
+  socket.on("logout", () => {
+    socket.data.nickname = null;
+    socket.emit("loggedOut");
+  });
+
+
+  socket.on("createRoom", ({ password, playerId, isPublic, botCount, botDifficulty }) => {
+    const nickname = socket.data.nickname;
+
+    if (!nickname) {
+      socket.emit("errorMessage", "로그인 후 방을 만들 수 있습니다.");
+      return;
+    }
+
+    if (!password || !playerId) {
+      socket.emit("errorMessage", "방 비밀번호를 입력하세요.");
       return;
     }
 
@@ -1235,16 +1354,22 @@ io.on("connection", (socket) => {
     sendRoomUpdate(roomCode);
   });
 
-  socket.on("joinRoom", ({ roomCode, nickname, password, playerId }) => {
+  socket.on("joinRoom", ({ roomCode, password, playerId }) => {
+    const nickname = socket.data.nickname;
     const room = rooms[roomCode];
+
+    if (!nickname) {
+      socket.emit("errorMessage", "로그인 후 참가할 수 있습니다.");
+      return;
+    }
 
     if (!room) {
       socket.emit("errorMessage", "없는 방입니다.");
       return;
     }
 
-    if (!nickname || !password || !playerId) {
-      socket.emit("errorMessage", "닉네임과 비밀번호를 입력하세요.");
+    if (!password || !playerId) {
+      socket.emit("errorMessage", "방번호와 비밀번호를 입력하세요.");
       return;
     }
 

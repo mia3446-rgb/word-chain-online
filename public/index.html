@@ -42,6 +42,29 @@
       font-weight: 700;
     }
 
+
+    .auth-box {
+      display: block;
+    }
+
+    .auth-tabs button {
+      box-shadow: 0 5px 0 #c99d00;
+      padding: 10px 16px;
+    }
+
+    #lobby {
+      display: none;
+    }
+
+    .login-info {
+      background: rgba(0,0,0,0.25);
+      padding: 10px;
+      border-radius: 14px;
+      margin-bottom: 12px;
+      font-weight: 900;
+      color: #fff176;
+    }
+
     .wide-layout {
       display: grid;
       grid-template-columns: 1.1fr 0.9fr;
@@ -464,7 +487,30 @@
         padding: 24px;
       }
 
-      .wide-layout {
+  
+    .auth-box {
+      display: block;
+    }
+
+    .auth-tabs button {
+      box-shadow: 0 5px 0 #c99d00;
+      padding: 10px 16px;
+    }
+
+    #lobby {
+      display: none;
+    }
+
+    .login-info {
+      background: rgba(0,0,0,0.25);
+      padding: 10px;
+      border-radius: 14px;
+      margin-bottom: 12px;
+      font-weight: 900;
+      color: #fff176;
+    }
+
+    .wide-layout {
         grid-template-columns: 1fr;
       }
 
@@ -484,12 +530,30 @@
     <h1>⚔️ WORD CHAIN ARENA</h1>
     <div class="subtitle">실시간 온라인 끝말잇기</div>
 
+    <div id="authBox" class="auth-box">
+      <div class="info">
+        <h3>🔐 로그인 / 회원가입</h3>
+        <input id="authNickname" placeholder="닉네임 2~12자" />
+        <input id="authPassword" placeholder="비밀번호 4자 이상" type="password" />
+        <div class="auth-tabs">
+          <button onclick="login()">로그인</button>
+          <button onclick="register()">회원가입</button>
+        </div>
+        <div style="font-size:13px; opacity:0.9; margin-top:8px;">
+          닉네임은 중복 불가. 로그인한 닉네임으로 전적이 저장됩니다.
+        </div>
+      </div>
+    </div>
+
     <div id="lobby">
+      <div class="login-info">
+        👤 로그인: <span id="currentUserName"></span>
+        <button onclick="logout()" style="padding:8px 12px; margin-left:8px; font-size:12px;">로그아웃</button>
+      </div>
       <div class="wide-layout">
         <div>
           <div class="info">
             <h3>🏠 방 만들기</h3>
-            <input id="nickname" placeholder="닉네임 입력" />
             <input id="roomPassword" placeholder="방 비밀번호 입력" />
             <select id="roomPublic">
               <option value="public">🌍 공개방</option>
@@ -513,7 +577,6 @@
 
           <div class="info">
             <h3>🚪 방번호로 참가</h3>
-            <input id="joinNickname" placeholder="닉네임 입력" />
             <input id="roomCodeInput" placeholder="방번호 입력" />
             <input id="joinPassword" placeholder="비밀번호 입력" />
             <button onclick="joinRoom()">방 참가하기</button>
@@ -616,6 +679,7 @@
     let mySocketId = "";
     let isHost = false;
     let latestRooms = [];
+    let currentUserNickname = "";
 
     let playerId = sessionStorage.getItem("wordChainPlayerId");
     if (!playerId) {
@@ -626,28 +690,72 @@
     socket.on("connect", () => {
       mySocketId = socket.id;
       loadRoomList();
+
+      const savedNickname = localStorage.getItem("wordChainNickname");
+      const savedToken = localStorage.getItem("wordChainToken");
+
+      if (savedNickname && savedToken) {
+        socket.emit("autoLogin", { nickname: savedNickname, token: savedToken });
+      }
     });
 
+    function register() {
+      const nickname = document.getElementById("authNickname").value.trim();
+      const password = document.getElementById("authPassword").value;
+
+      socket.emit("register", { nickname, password });
+    }
+
+    function login() {
+      const nickname = document.getElementById("authNickname").value.trim();
+      const password = document.getElementById("authPassword").value;
+
+      socket.emit("login", { nickname, password });
+    }
+
+    function logout() {
+      localStorage.removeItem("wordChainNickname");
+      localStorage.removeItem("wordChainToken");
+      currentUserNickname = "";
+      document.getElementById("authBox").style.display = "block";
+      document.getElementById("lobby").style.display = "none";
+      socket.emit("logout");
+    }
+
+    function showLoggedIn(nickname, token) {
+      currentUserNickname = nickname;
+      localStorage.setItem("wordChainNickname", nickname);
+      localStorage.setItem("wordChainToken", token);
+
+      document.getElementById("currentUserName").textContent = nickname;
+      document.getElementById("authBox").style.display = "none";
+      document.getElementById("lobby").style.display = "block";
+    }
+
+
+
     function createRoom() {
-      const nickname = document.getElementById("nickname").value.trim();
       const password = document.getElementById("roomPassword").value.trim();
       const isPublic = document.getElementById("roomPublic").value === "public";
       const botCount = Number(document.getElementById("botCount").value);
       const botDifficulty = document.getElementById("botDifficulty").value;
 
-      if (!nickname) return alert("닉네임을 입력하세요.");
+      if (!currentUserNickname) return alert("로그인 먼저 해주세요.");
       if (!password) return alert("방 비밀번호를 입력하세요.");
 
-      socket.emit("createRoom", { nickname, password, playerId, isPublic, botCount, botDifficulty });
+      socket.emit("createRoom", { password, playerId, isPublic, botCount, botDifficulty });
     }
 
     function joinRoom() {
-      const nickname = document.getElementById("joinNickname").value.trim();
       const roomCode = document.getElementById("roomCodeInput").value.trim();
       const password = document.getElementById("joinPassword").value.trim();
 
-      if (!nickname || !roomCode) {
-        return alert("닉네임과 방번호를 입력하세요.");
+      if (!currentUserNickname) {
+        return alert("로그인 먼저 해주세요.");
+      }
+
+      if (!roomCode) {
+        return alert("방번호를 입력하세요.");
       }
 
       if (!password) {
@@ -657,7 +765,7 @@
       myRoomCode = roomCode;
       isHost = false;
 
-      socket.emit("joinRoom", { roomCode, nickname, password, playerId });
+      socket.emit("joinRoom", { roomCode, password, playerId });
     }
 
     function loadRoomList() {
@@ -896,6 +1004,21 @@
       }
     });
 
+    socket.on("authSuccess", ({ nickname, token }) => {
+      showLoggedIn(nickname, token);
+      showNotice(`✅ 로그인 성공!\n\n${nickname}`, 1800);
+    });
+
+    socket.on("authError", (msg) => {
+      if (msg !== "자동 로그인 실패") {
+        showNotice(`❌ ${msg}`, 2500);
+      }
+    });
+
+    socket.on("loggedOut", () => {
+      showNotice("로그아웃 완료", 1500);
+    });
+
     socket.on("roomList", (rooms) => {
       latestRooms = rooms || [];
       renderRoomList();
@@ -905,6 +1028,9 @@
       myRoomCode = roomCode;
       isHost = true;
 
+      document.getElementById("authBox").style.display = "none";
+      document.getElementById("authBox").style.display = "none";
+      document.getElementById("authBox").style.display = "none";
       document.getElementById("lobby").style.display = "none";
       document.getElementById("game").style.display = "block";
       document.getElementById("roomCode").textContent = roomCode;
