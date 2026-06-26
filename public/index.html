@@ -364,6 +364,46 @@
       padding: 14px 18px;
     }
 
+
+    .ready-button, .rematch-button {
+      background: #8cff66;
+      box-shadow: 0 8px 0 #4e9c37;
+    }
+
+    .countdown-box {
+      display: none;
+      font-size: 52px;
+      font-weight: 900;
+      color: #fff176;
+      text-shadow: 0 6px 16px rgba(0,0,0,0.45);
+      margin: 16px 0;
+      animation: blink 0.7s infinite;
+    }
+
+    .result-box {
+      display: none;
+      background: rgba(0,0,0,0.28);
+      border-radius: 18px;
+      padding: 14px;
+      margin-top: 12px;
+      font-weight: 900;
+      text-align: left;
+    }
+
+    .result-box div {
+      margin: 6px 0;
+    }
+
+    .spectator-box {
+      display: none;
+      background: rgba(255,255,255,0.18);
+      border-radius: 16px;
+      padding: 12px;
+      margin: 10px 0;
+      font-weight: 900;
+      color: #ffe066;
+    }
+
     @media (max-width: 720px) {
       .card {
         width: 92vw;
@@ -460,9 +500,14 @@
             <div id="recommendedWords"></div>
           </div>
 
+          <div id="countdownBox" class="countdown-box">3</div>
+
           <div class="info timer">⏱ 남은 시간: <span id="timeLimit">20</span>초</div>
           <div class="info turn-box">🎯 현재 차례<br><span id="turnPlayer"></span></div>
 
+          <div id="spectatorBox" class="spectator-box">👀 관전 중입니다. 채팅은 계속 가능합니다.</div>
+
+          <button id="readyButton" class="ready-button" onclick="toggleReady()">✅ 준비</button>
           <button id="startButton" onclick="startGame()">게임 시작</button>
 
           <input id="wordInput" placeholder="단어 입력" />
@@ -471,6 +516,8 @@
           <div id="winnerBox">
             🏆 최종 승리
             <span id="winnerName"></span>
+            <div id="resultBox" class="result-box"></div>
+            <button id="rematchButton" class="rematch-button" onclick="requestRematch()">🔄 다시하기</button>
           </div>
         </div>
 
@@ -602,6 +649,39 @@
       socket.emit("startGame", myRoomCode);
     }
 
+    function toggleReady() {
+      socket.emit("toggleReady", myRoomCode);
+    }
+
+    function requestRematch() {
+      socket.emit("requestRematch", myRoomCode);
+    }
+
+    function formatDuration(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+
+      if (m <= 0) return `${s}초`;
+      return `${m}분 ${s}초`;
+    }
+
+    function renderMatchResult(room) {
+      const resultBox = document.getElementById("resultBox");
+      const result = room.matchResult || {};
+      const order = result.eliminationOrder || [];
+
+      const orderHtml = order.length > 0
+        ? order.map((item, index) => `<div>${index + 1}. ${item.nickname} - ${item.reason}</div>`).join("")
+        : "<div>탈락자 없음</div>";
+
+      resultBox.innerHTML = `
+        <div>⏱ 경기 시간: ${formatDuration(result.durationSec || 0)}</div>
+        <div>📝 사용 단어: ${result.usedWordCount || 0}개</div>
+        <div>💀 탈락 순서</div>
+        ${orderHtml}
+      `;
+    }
+
     function submitWord() {
       const wordInput = document.getElementById("wordInput");
       const word = wordInput.value.trim();
@@ -718,6 +798,7 @@
 
       const statusText =
         room.status === "waiting" ? "🟡 대기중" :
+        room.status === "countdown" ? "⏳ 카운트다운" :
         room.status === "playing" ? "🟢 게임중" :
         "🔴 게임오버";
 
@@ -765,18 +846,38 @@
           const host = p.playerId === room.hostId ? " 👑방장" : "";
           const offline = p.connected ? "" : " (연결 끊김)";
           const eliminated = p.eliminated ? " 💀탈락" : "";
+          const ready = room.status === "waiting" && !p.isBot ? (room.readyPlayers && room.readyPlayers[p.playerId] ? " ✅준비" : " ⏳미준비") : "";
           const cls =
             (p.connected ? "" : "disconnected ") +
             (p.eliminated ? "eliminated" : "");
 
-          return `<li class="${cls.trim()}">${icon} ${p.nickname}${host}${offline}${eliminated}</li>`;
+          return `<li class="${cls.trim()}">${icon} ${p.nickname}${host}${offline}${eliminated}${ready}</li>`;
         }).join("");
 
       document.getElementById("usedWords").innerHTML =
         room.usedWords.map(w => `<span class="used-card">🍎 ${w}</span>`).join("");
 
-      document.getElementById("startButton").style.display =
-        room.status !== "playing" && isHost ? "inline-block" : "none";
+      const countdownBox = document.getElementById("countdownBox");
+      if (room.status === "countdown") {
+        countdownBox.style.display = "block";
+        countdownBox.textContent = room.countdown || "START";
+      } else {
+        countdownBox.style.display = "none";
+      }
+
+      const readyButton = document.getElementById("readyButton");
+      const startButton = document.getElementById("startButton");
+
+      const myReady = room.readyPlayers && room.readyPlayers[playerId];
+
+      readyButton.style.display = room.status === "waiting" ? "inline-block" : "none";
+      readyButton.textContent = myReady ? "✅ 준비 완료" : "✅ 준비";
+      startButton.style.display = room.status === "waiting" && isHost ? "inline-block" : "none";
+      startButton.disabled = !room.canStart;
+
+      const myPlayer = room.players.find(p => p.playerId === playerId);
+      const isSpectator = room.status === "playing" && myPlayer && myPlayer.eliminated;
+      document.getElementById("spectatorBox").style.display = isSpectator ? "block" : "none";
 
       const myTurn = room.status === "playing" && room.turnPlayerId === playerId;
       const wordInput = document.getElementById("wordInput");
@@ -788,9 +889,9 @@
 
       const activeId = document.activeElement ? document.activeElement.id : "";
 
-if (myTurn && activeId !== "chatInput") {
-  wordInput.focus();
-}
+      if (myTurn && activeId !== "chatInput") {
+        wordInput.focus();
+      }
 
       const winnerBox = document.getElementById("winnerBox");
       const winnerName = document.getElementById("winnerName");
@@ -799,9 +900,14 @@ if (myTurn && activeId !== "chatInput") {
         document.getElementById("message").textContent = room.gameoverReason || "게임오버!";
         winnerBox.style.display = "block";
         winnerName.textContent = room.winnerText || "승자 없음";
+        renderMatchResult(room);
+        document.getElementById("resultBox").style.display = "block";
+        document.getElementById("rematchButton").style.display = isHost ? "inline-block" : "none";
       } else {
         winnerBox.style.display = "none";
         winnerName.textContent = "";
+        document.getElementById("resultBox").style.display = "none";
+        document.getElementById("rematchButton").style.display = "none";
 
         if (room.lastNotice) {
           document.getElementById("message").textContent = room.lastNotice;

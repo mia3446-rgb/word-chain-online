@@ -176,6 +176,11 @@ function stopTimer(room) {
     clearTimeout(room.botTimeout);
     room.botTimeout = null;
   }
+
+  if (room.countdownTimer) {
+    clearInterval(room.countdownTimer);
+    room.countdownTimer = null;
+  }
 }
 
 function activePlayers(room) {
@@ -293,11 +298,74 @@ function getNextWordInfo(room) {
   };
 }
 
+
+function humanPlayers(room) {
+  return room.players.filter(p => !p.isBot && p.connected);
+}
+
+function totalPlayablePlayers(room) {
+  return room.players.filter(p => p.connected).length;
+}
+
+function isReady(room, playerId) {
+  return !!(room.readyPlayers && room.readyPlayers[playerId]);
+}
+
+function allHumansReady(room) {
+  const humans = humanPlayers(room);
+  if (humans.length === 0) return false;
+  return humans.every(p => isReady(room, p.playerId));
+}
+
+function canStartRoom(room) {
+  return room.status === "waiting" && totalPlayablePlayers(room) >= 2 && allHumansReady(room);
+}
+
+function resetReady(room) {
+  room.readyPlayers = {};
+}
+
+function getMatchResult(room) {
+  const started = room.matchStartedAt || 0;
+  const ended = room.matchEndedAt || Date.now();
+  const durationSec = started ? Math.max(0, Math.floor((ended - started) / 1000)) : 0;
+
+  return {
+    winnerText: room.winnerText || "",
+    durationSec,
+    usedWordCount: room.usedWords ? room.usedWords.length : 0,
+    eliminationOrder: room.eliminationOrder || []
+  };
+}
+
+function addElimination(room, player, reason) {
+  if (!room.eliminationOrder) {
+    room.eliminationOrder = [];
+  }
+
+  if (!player) return;
+
+  const already = room.eliminationOrder.some(item => item.playerId === player.playerId);
+  if (already) return;
+
+  room.eliminationOrder.push({
+    playerId: player.playerId,
+    nickname: player.nickname,
+    reason,
+    time: Date.now()
+  });
+}
+
 function publicRoom(room) {
   const turnPlayer = normalizeTurn(room);
   const nextWordInfo = getNextWordInfo(room);
 
   return {
+    readyPlayers: room.readyPlayers || {},
+    canStart: canStartRoom(room),
+    allReady: allHumansReady(room),
+    countdown: room.countdown || 0,
+    matchResult: getMatchResult(room),
     turnPlayerId: turnPlayer ? turnPlayer.playerId : "",
     turnPlayerName: turnPlayer ? turnPlayer.nickname : "",
     players: room.players.map(p => ({
@@ -404,6 +472,8 @@ function gameOver(roomCode, reason) {
   room.status = "gameover";
   room.gameoverReason = reason;
   room.winnerText = getWinnerText(room);
+  room.matchEndedAt = Date.now();
+  room.countdown = 0;
 
   addSystemMessage(roomCode, `🏆 최종 승리: ${room.winnerText}`);
 
@@ -428,6 +498,7 @@ function eliminatePlayer(roomCode, player, reason) {
   player.eliminated = true;
   room.wrongCount = 0;
   room.lastNotice = `${player.nickname} 탈락! ${reason}`;
+  addElimination(room, player, reason);
   addSystemMessage(roomCode, `💀 ${player.nickname}님 탈락! (${reason})`);
 
   const alive = activePlayers(room);
@@ -705,6 +776,121 @@ function addBotsToRoom(room, roomCode, botCount, botDifficulty) {
   }
 }
 
+
+function beginGame(roomCode) {
+  const room = rooms[roomCode];
+  if (!room) return;
+
+  const startWord = getRandomStartWord();
+
+  if (!startWord) {
+    addSystemMessage(roomCode, "시작 단어를 고를 수 없습니다. words 폴더를 확인하세요.");
+    return;
+  }
+
+  room.players.forEach(p => {
+    if (p.connected || p.isBot) {
+      p.eliminated = false;
+    }
+    if (p.isBot) {
+      p.connected = true;
+    }
+  });
+
+  room.status = "playing";
+  room.turn = 0;
+  room.currentWord = startWord;
+  room.startWord = startWord;
+  room.usedWords = [];
+  room.timeLimit = 20;
+  room.timeLeft = 20;
+  room.wrongCount = 0;
+  room.gameoverReason = "";
+  room.winnerText = "";
+  room.lastNotice = `🎲 시작 단어: ${startWord}`;
+  room.countdown = 0;
+  room.matchStartedAt = Date.now();
+  room.matchEndedAt = 0;
+  room.eliminationOrder = [];
+
+  addSystemMessage(roomCode, `🎮 게임 시작! 시작 단어는 ${startWord}`);
+  startTurnTimer(roomCode);
+}
+
+function startCountdown(roomCode) {
+  const room = rooms[roomCode];
+  if (!room) return;
+
+  if (!canStartRoom(room)) {
+    sendRoomUpdate(roomCode);
+    return;
+  }
+
+  stopTimer(room);
+  room.status = "countdown";
+  room.countdown = 3;
+  room.currentWord = "";
+  room.startWord = "";
+  room.usedWords = [];
+  room.lastNotice = "⏳ 3초 후 시작!";
+  addSystemMessage(roomCode, "⏳ 재경기/게임 시작 준비!");
+
+  sendRoomUpdate(roomCode);
+
+  room.countdownTimer = setInterval(() => {
+    const r = rooms[roomCode];
+    if (!r) return;
+
+    r.countdown--;
+
+    if (r.countdown <= 0) {
+      if (r.countdownTimer) {
+        clearInterval(r.countdownTimer);
+        r.countdownTimer = null;
+      }
+      beginGame(roomCode);
+      return;
+    }
+
+    r.lastNotice = `⏳ ${r.countdown}초 후 시작!`;
+    sendRoomUpdate(roomCode);
+  }, 1000);
+}
+
+function prepareRematch(roomCode) {
+  const room = rooms[roomCode];
+  if (!room) return;
+
+  stopTimer(room);
+
+  room.status = "waiting";
+  room.currentWord = "";
+  room.startWord = "";
+  room.turn = 0;
+  room.usedWords = [];
+  room.timeLimit = 20;
+  room.timeLeft = 20;
+  room.wrongCount = 0;
+  room.gameoverReason = "";
+  room.winnerText = "";
+  room.lastNotice = "🔄 재경기 준비 중!";
+  room.countdown = 0;
+  room.matchEndedAt = 0;
+
+  room.players.forEach(p => {
+    if (p.connected || p.isBot) {
+      p.eliminated = false;
+    }
+    if (p.isBot) {
+      p.connected = true;
+    }
+  });
+
+  resetReady(room);
+  addSystemMessage(roomCode, "🔄 재경기 준비! 모두 준비 버튼을 눌러 주세요.");
+  sendRoomUpdate(roomCode);
+}
+
 io.on("connection", (socket) => {
   socket.data.roomCode = null;
   socket.data.playerId = null;
@@ -741,7 +927,13 @@ io.on("connection", (socket) => {
       winnerText: "",
       lastNotice: "",
       chatMessages: [],
+      readyPlayers: {},
+      countdown: 0,
+      countdownTimer: null,
       botTimeout: null,
+      matchStartedAt: 0,
+      matchEndedAt: 0,
+      eliminationOrder: [],
       timer: null
     };
 
@@ -808,44 +1000,54 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (room.status === "playing") return;
+    if (room.status === "playing" || room.status === "countdown") return;
 
-    room.players.forEach(p => {
-      p.eliminated = false;
-      if (p.isBot) {
-        p.connected = true;
-      }
-    });
-
-    if (activePlayers(room).length < 2) {
-      socket.emit("errorMessage", "2명 이상이어야 시작할 수 있습니다.");
+    if (!canStartRoom(room)) {
+      socket.emit("errorMessage", "모든 플레이어가 준비해야 시작할 수 있습니다.");
+      sendRoomUpdate(roomCode);
       return;
     }
 
-    const startWord = getRandomStartWord();
-
-    if (!startWord) {
-      socket.emit("errorMessage", "시작 단어를 고를 수 없습니다. words 폴더를 확인하세요.");
-      return;
-    }
-
-    room.status = "playing";
-    room.turn = 0;
-    room.currentWord = startWord;
-    room.startWord = startWord;
-    room.usedWords = [];
-    room.timeLimit = 20;
-    room.timeLeft = 20;
-    room.wrongCount = 0;
-    room.gameoverReason = "";
-    room.winnerText = "";
-    room.lastNotice = `🎲 시작 단어: ${startWord}`;
-
-    addSystemMessage(roomCode, `🎮 게임 시작! 시작 단어는 ${startWord}`);
-    startTurnTimer(roomCode);
+    startCountdown(roomCode);
   });
 
-  socket.on("submitWord", ({ roomCode, word }) => {
+  socket.on("toggleReady", (roomCode) => {
+    const room = rooms[roomCode];
+    if (!room || room.status !== "waiting") return;
+
+    const player = findPlayer(room, socket.data.playerId);
+
+    if (!player || player.isBot) return;
+
+    if (!room.readyPlayers) {
+      room.readyPlayers = {};
+    }
+
+    room.readyPlayers[player.playerId] = !room.readyPlayers[player.playerId];
+
+    addSystemMessage(
+      roomCode,
+      room.readyPlayers[player.playerId]
+        ? `✅ ${player.nickname}님 준비 완료`
+        : `⏳ ${player.nickname}님 준비 취소`
+    );
+
+    sendRoomUpdate(roomCode);
+  });
+
+  socket.on("requestRematch", (roomCode) => {
+    const room = rooms[roomCode];
+    if (!room || room.status !== "gameover") return;
+
+    if (room.hostId !== socket.data.playerId) {
+      socket.emit("errorMessage", "방장만 재경기를 준비할 수 있습니다.");
+      return;
+    }
+
+    prepareRematch(roomCode);
+  });
+
+    socket.on("submitWord", ({ roomCode, word }) => {
     const room = rooms[roomCode];
     if (!room || room.status !== "playing") return;
 
@@ -970,6 +1172,7 @@ io.on("connection", (socket) => {
       if (r.status === "playing" && p && !p.eliminated) {
         p.eliminated = true;
         p.connected = false;
+        addElimination(r, p, "연결 끊김");
         addSystemMessage(roomCode, `💀 ${p.nickname}님 탈락! (연결 끊김)`);
 
         if (activePlayers(r).length <= 1) {
