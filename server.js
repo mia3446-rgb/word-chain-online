@@ -135,26 +135,35 @@ function isOneShotWord(word) {
 }
 
 function getRandomStartWord() {
-  if (allWords.length === 0) {
+  const candidates = [];
+
+  for (const word of allWords) {
+    if (!isKoreanWord(word)) continue;
+    if (word.length < 2 || word.length > 4) continue;
+    if (isOneShotWord(word)) continue;
+
+    const last = word[word.length - 1];
+    const starts = getDueumStarts(last);
+
+    let nextCount = 0;
+
+    for (const start of starts) {
+      const words = startMap.get(start) || [];
+      nextCount += words.length;
+    }
+
+    if (nextCount >= 10) {
+      candidates.push(word);
+    }
+
+    if (candidates.length >= 1000) break;
+  }
+
+  if (candidates.length === 0) {
     return "";
   }
 
-  // 빠른 랜덤 시도: 대부분 여기서 끝남
-  for (let i = 0; i < 200; i++) {
-    const word = allWords[Math.floor(Math.random() * allWords.length)];
-    if (isKoreanWord(word) && !isOneShotWord(word)) {
-      return word;
-    }
-  }
-
-  // 혹시 랜덤으로 계속 한방단어만 걸리면 앞에서부터 안전 단어 탐색
-  for (const word of allWords) {
-    if (isKoreanWord(word) && !isOneShotWord(word)) {
-      return word;
-    }
-  }
-
-  return "";
+  return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
 function stopTimer(room) {
