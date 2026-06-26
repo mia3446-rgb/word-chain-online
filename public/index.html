@@ -786,9 +786,11 @@
       document.getElementById("chatInput").disabled = false;
       document.getElementById("chatSendButton").disabled = false;
 
-      if (myTurn) {
-        wordInput.focus();
-      }
+      const activeId = document.activeElement ? document.activeElement.id : "";
+
+if (myTurn && activeId !== "chatInput") {
+  wordInput.focus();
+}
 
       const winnerBox = document.getElementById("winnerBox");
       const winnerName = document.getElementById("winnerName");
