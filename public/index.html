@@ -584,13 +584,12 @@
 
       document.getElementById("timeLimit").textContent = room.timeLeft ?? 20;
 
-      const turnPlayer = room.players[room.turn];
       document.getElementById("turnPlayer").textContent =
-        turnPlayer ? `${turnPlayer.nickname}${turnPlayer.eliminated ? " (탈락)" : ""}` : "";
+        room.turnPlayerName ? room.turnPlayerName : "";
 
       document.getElementById("players").innerHTML =
         room.players.map((p, index) => {
-          const icon = index === room.turn && room.status === "playing" && !p.eliminated ? "👑" : "⚔️";
+          const icon = p.playerId === room.turnPlayerId && room.status === "playing" && !p.eliminated ? "👑" : "⚔️";
           const host = p.playerId === room.hostId ? " 👑방장" : "";
           const offline = p.connected ? "" : " (연결 끊김)";
           const eliminated = p.eliminated ? " 💀탈락" : "";

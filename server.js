@@ -180,6 +180,10 @@ function normalizeTurn(room) {
     return null;
   }
 
+  if (room.turn < 0 || room.turn >= room.players.length) {
+    room.turn = 0;
+  }
+
   const current = room.players[room.turn];
 
   if (current && !current.eliminated && current.connected) {
@@ -187,9 +191,11 @@ function normalizeTurn(room) {
   }
 
   for (let i = 0; i < room.players.length; i++) {
-    const p = room.players[i];
+    const idx = (room.turn + i) % room.players.length;
+    const p = room.players[idx];
+
     if (p && !p.eliminated && p.connected) {
-      room.turn = i;
+      room.turn = idx;
       return p;
     }
   }
@@ -228,9 +234,11 @@ function getWinnerText(room) {
 }
 
 function publicRoom(room) {
-  normalizeTurn(room);
+  const turnPlayer = normalizeTurn(room);
 
   return {
+    turnPlayerId: turnPlayer ? turnPlayer.playerId : "",
+    turnPlayerName: turnPlayer ? turnPlayer.nickname : "",
     players: room.players.map(p => ({
       playerId: p.playerId,
       socketId: p.socketId,
@@ -629,9 +637,9 @@ io.on("connection", (socket) => {
     }
 
     if (room.usedWords.length === 0 && isOneShotWord(word)) {
-  wrong("첫 번째 단어로는 한방단어를 사용할 수 없습니다!");
-  return;
-}
+      wrong("첫 번째 단어로는 한방단어를 사용할 수 없습니다!");
+      return;
+    }
 
     if (room.currentWord) {
       const last = room.currentWord[room.currentWord.length - 1];
