@@ -861,7 +861,11 @@ io.on("connection", (socket) => {
 
     function wrong(msg) {
       room.wrongCount++;
-      socket.emit("errorMessage", `${msg} (${room.wrongCount}/5)`);
+
+      socket.emit(
+        "errorMessage",
+        `❌ 오답!\n\n${msg}\n\n(${room.wrongCount}/5)`
+      );
 
       if (room.wrongCount >= 5) {
         eliminatePlayer(roomCode, player, "한 턴에 5번 틀림");
@@ -871,22 +875,22 @@ io.on("connection", (socket) => {
     }
 
     if (!isKoreanWord(word)) {
-      wrong("두 글자 이상의 한글 단어만 입력할 수 있습니다.");
+      wrong("👉 두 글자 이상의 한글 단어만 입력!");
       return;
     }
 
     if (!wordExists(word)) {
-      wrong("그 단어는 없는 단어입니다.");
+      wrong("👉 사전에 없는 단어입니다!");
       return;
     }
 
     if (room.usedWords.includes(word) || word === room.startWord) {
-      wrong("이미 사용한 단어입니다.");
+      wrong("👉 이미 사용한 단어입니다!");
       return;
     }
 
     if (room.usedWords.length === 0 && isOneShotWord(word)) {
-      wrong("첫 번째 단어로는 한방단어를 사용할 수 없습니다!");
+      wrong("👉 첫 번째 단어로는 한방단어 금지!");
       return;
     }
 
@@ -896,7 +900,7 @@ io.on("connection", (socket) => {
 
       if (!isValidChain(last, first)) {
         const starts = getDueumStarts(last).join(" 또는 ");
-        wrong(`${starts}로 시작해야 합니다!`);
+        wrong(`👉 ${starts}로 시작!`);
         return;
       }
     }
