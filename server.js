@@ -628,6 +628,11 @@ io.on("connection", (socket) => {
       return;
     }
 
+    if (room.usedWords.length === 0 && isOneShotWord(word)) {
+  wrong("첫 번째 단어로는 한방단어를 사용할 수 없습니다!");
+  return;
+}
+
     if (room.currentWord) {
       const last = room.currentWord[room.currentWord.length - 1];
       const first = word[0];
