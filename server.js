@@ -165,6 +165,106 @@ function publicProfile(nickname) {
   };
 }
 
+
+function getAllPublicProfiles() {
+  return Object.keys(playerData)
+    .map(nickname => publicProfile(nickname))
+    .filter(profile => profile && profile.nickname);
+}
+
+function makeRankingList(type) {
+  const profiles = getAllPublicProfiles();
+
+  let filtered = profiles.slice();
+  let valueLabel = "";
+
+  if (type === "wins") {
+    valueLabel = "승";
+    filtered.sort((a, b) => b.wins - a.wins || b.level - a.level || a.nickname.localeCompare(b.nickname));
+  } else if (type === "winRate") {
+    valueLabel = "%";
+    filtered = filtered.filter(p => p.games >= 10);
+    filtered.sort((a, b) => b.winRate - a.winRate || b.wins - a.wins || a.nickname.localeCompare(b.nickname));
+  } else if (type === "level") {
+    valueLabel = "Lv";
+    filtered.sort((a, b) => b.level - a.level || b.xp - a.xp || b.wins - a.wins || a.nickname.localeCompare(b.nickname));
+  } else if (type === "coins") {
+    valueLabel = "코인";
+    filtered.sort((a, b) => b.coins - a.coins || b.level - a.level || a.nickname.localeCompare(b.nickname));
+  } else if (type === "streak") {
+    valueLabel = "연승";
+    filtered.sort((a, b) => b.bestWinStreak - a.bestWinStreak || b.wins - a.wins || a.nickname.localeCompare(b.nickname));
+  } else {
+    valueLabel = "점";
+    filtered.sort((a, b) => b.level - a.level || b.wins - a.wins || a.nickname.localeCompare(b.nickname));
+  }
+
+  return filtered.slice(0, 10).map((profile, index) => {
+    let value = "";
+
+    if (type === "wins") value = `${profile.wins}승`;
+    else if (type === "winRate") value = `${profile.winRate}% (${profile.wins}승 ${profile.losses}패)`;
+    else if (type === "level") value = `Lv.${profile.level}`;
+    else if (type === "coins") value = `${profile.coins}코인`;
+    else if (type === "streak") value = `${profile.bestWinStreak}연승`;
+    else value = `${profile.level}`;
+
+    return {
+      rank: index + 1,
+      nickname: profile.nickname,
+      selectedTitle: profile.selectedTitle || "",
+      level: profile.level,
+      wins: profile.wins,
+      losses: profile.losses,
+      games: profile.games,
+      winRate: profile.winRate,
+      coins: profile.coins,
+      bestWinStreak: profile.bestWinStreak,
+      value
+    };
+  });
+}
+
+function getMyRankings(nickname) {
+  const me = publicProfile(nickname);
+  const types = ["wins", "winRate", "level", "coins", "streak"];
+  const result = {};
+
+  for (const type of types) {
+    let profiles = getAllPublicProfiles();
+
+    if (type === "wins") {
+      profiles.sort((a, b) => b.wins - a.wins || b.level - a.level || a.nickname.localeCompare(b.nickname));
+    } else if (type === "winRate") {
+      profiles = profiles.filter(p => p.games >= 10);
+      profiles.sort((a, b) => b.winRate - a.winRate || b.wins - a.wins || a.nickname.localeCompare(b.nickname));
+    } else if (type === "level") {
+      profiles.sort((a, b) => b.level - a.level || b.xp - a.xp || b.wins - a.wins || a.nickname.localeCompare(b.nickname));
+    } else if (type === "coins") {
+      profiles.sort((a, b) => b.coins - a.coins || b.level - a.level || a.nickname.localeCompare(b.nickname));
+    } else if (type === "streak") {
+      profiles.sort((a, b) => b.bestWinStreak - a.bestWinStreak || b.wins - a.wins || a.nickname.localeCompare(b.nickname));
+    }
+
+    const index = profiles.findIndex(p => p.nickname === me.nickname);
+    result[type] = index >= 0 ? index + 1 : null;
+  }
+
+  return result;
+}
+
+function getRankings(nickname) {
+  return {
+    wins: makeRankingList("wins"),
+    winRate: makeRankingList("winRate"),
+    level: makeRankingList("level"),
+    coins: makeRankingList("coins"),
+    streak: makeRankingList("streak"),
+    myRanks: nickname ? getMyRankings(nickname) : {}
+  };
+}
+
+
 loadPlayerData();
 
 const wordsDir = path.join(__dirname, "words");
@@ -1542,6 +1642,10 @@ io.on("connection", (socket) => {
 
     setTimeLimitByTurn(room);
     startTurnTimer(roomCode);
+  });
+
+  socket.on("getRankings", () => {
+    socket.emit("rankingData", getRankings(socket.data.nickname));
   });
 
   socket.on("getProfile", ({ nickname }) => {

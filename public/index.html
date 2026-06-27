@@ -509,6 +509,80 @@
       margin-top: 14px;
     }
 
+
+    .ranking-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 998;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .ranking-card {
+      width: min(720px, 92vw);
+      max-height: 86vh;
+      overflow-y: auto;
+      background: rgba(30,30,60,0.97);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 20px 70px rgba(0,0,0,0.45);
+      border: 2px solid rgba(255,255,255,0.18);
+      font-weight: 900;
+    }
+
+    .ranking-card h2 {
+      margin: 0 0 12px;
+      color: #fff176;
+    }
+
+    .ranking-tabs button {
+      padding: 10px 12px;
+      margin: 4px;
+      font-size: 13px;
+      box-shadow: 0 5px 0 #c99d00;
+    }
+
+    .ranking-list {
+      margin-top: 12px;
+      text-align: left;
+    }
+
+    .ranking-row {
+      background: rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 10px;
+      margin: 7px 0;
+      display: grid;
+      grid-template-columns: 60px 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .ranking-rank {
+      color: #fff176;
+      font-size: 18px;
+    }
+
+    .ranking-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .ranking-value {
+      color: #b8ffcf;
+    }
+
+    .my-rank-box {
+      background: rgba(255, 204, 0, 0.18);
+      border-radius: 14px;
+      padding: 12px;
+      margin-top: 14px;
+      text-align: left;
+    }
+
     @media (max-width: 720px) {
       .card {
         width: 92vw;
@@ -581,6 +655,7 @@
     <div id="lobby">
       <div class="login-info">
         👤 로그인: <span id="currentUserName"></span>
+        <button onclick="openRanking()" style="padding:8px 12px; margin-left:8px; font-size:12px;">🏆 랭킹</button>
         <button onclick="logout()" style="padding:8px 12px; margin-left:8px; font-size:12px;">로그아웃</button>
       </div>
       <div class="wide-layout">
@@ -707,6 +782,22 @@
       <h2 id="profileName">프로필</h2>
       <div id="profileContent"></div>
       <button class="profile-close" onclick="closeProfile()">닫기</button>
+    </div>
+  </div>
+
+  <div id="rankingModal" class="ranking-modal">
+    <div class="ranking-card">
+      <h2>🏆 랭킹 TOP 10</h2>
+      <div class="ranking-tabs">
+        <button onclick="renderRanking('wins')">🏆 승리</button>
+        <button onclick="renderRanking('winRate')">📈 승률</button>
+        <button onclick="renderRanking('level')">⭐ 레벨</button>
+        <button onclick="renderRanking('coins')">💰 코인</button>
+        <button onclick="renderRanking('streak')">🔥 연승</button>
+      </div>
+      <div id="rankingList" class="ranking-list"></div>
+      <div id="myRankBox" class="my-rank-box"></div>
+      <button class="profile-close" onclick="closeRanking()">닫기</button>
     </div>
   </div>
 
@@ -1231,8 +1322,74 @@
       }
     });
 
+
+    let latestRankingData = null;
+    let currentRankingType = "wins";
+
+    function openRanking() {
+      socket.emit("getRankings");
+    }
+
+    function closeRanking() {
+      document.getElementById("rankingModal").style.display = "none";
+    }
+
+    function getRankTitle(type) {
+      if (type === "wins") return "🏆 승리 랭킹";
+      if (type === "winRate") return "📈 승률 랭킹 (10판 이상)";
+      if (type === "level") return "⭐ 레벨 랭킹";
+      if (type === "coins") return "💰 코인 랭킹";
+      if (type === "streak") return "🔥 최고 연승 랭킹";
+      return "🏆 랭킹";
+    }
+
+    function medal(rank) {
+      if (rank === 1) return "🥇";
+      if (rank === 2) return "🥈";
+      if (rank === 3) return "🥉";
+      return `#${rank}`;
+    }
+
+    function renderRanking(type) {
+      if (!latestRankingData) return;
+
+      currentRankingType = type;
+      const list = latestRankingData[type] || [];
+      const rankingList = document.getElementById("rankingList");
+      const myRankBox = document.getElementById("myRankBox");
+
+      if (list.length === 0) {
+        rankingList.innerHTML = `<h3>${getRankTitle(type)}</h3><div>아직 랭킹 데이터가 없습니다.</div>`;
+      } else {
+        rankingList.innerHTML = `
+          <h3>${getRankTitle(type)}</h3>
+          ${list.map(item => `
+            <div class="ranking-row">
+              <div class="ranking-rank">${medal(item.rank)}</div>
+              <div class="ranking-name">${item.selectedTitle || ""} ${item.nickname}</div>
+              <div class="ranking-value">${item.value}</div>
+            </div>
+          `).join("")}
+        `;
+      }
+
+      const my = latestRankingData.myRanks || {};
+      const myRankText = my[type] ? `${my[type]}위` : "집계 조건 미달";
+
+      myRankBox.innerHTML = `
+        <div>👤 내 순위</div>
+        <div>${getRankTitle(type)} : ${myRankText}</div>
+      `;
+    }
+
     socket.on("profileData", (profile) => {
       showProfile(profile);
+    });
+
+    socket.on("rankingData", (data) => {
+      latestRankingData = data;
+      document.getElementById("rankingModal").style.display = "flex";
+      renderRanking(currentRankingType);
     });
 
     socket.on("chatUpdate", (messages) => {
