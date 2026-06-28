@@ -583,6 +583,90 @@
       text-align: left;
     }
 
+
+    .achievement-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.58);
+      z-index: 997;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .achievement-card {
+      width: min(760px, 92vw);
+      max-height: 86vh;
+      overflow-y: auto;
+      background: rgba(25,25,55,0.98);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 20px 70px rgba(0,0,0,0.45);
+      border: 2px solid rgba(255,255,255,0.18);
+      font-weight: 900;
+    }
+
+    .achievement-row {
+      background: rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 12px;
+      margin: 8px 0;
+      text-align: left;
+    }
+
+    .achievement-row.unlocked {
+      background: rgba(255, 204, 0, 0.18);
+      border: 1px solid rgba(255, 224, 102, 0.55);
+    }
+
+    .rarity-normal { color: #b8ffcf; }
+    .rarity-rare { color: #7cc7ff; }
+    .rarity-epic { color: #d69cff; }
+    .rarity-legend { color: #ffcc66; }
+
+    .progress-wrap {
+      height: 12px;
+      background: rgba(0,0,0,0.28);
+      border-radius: 999px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: #ffcc00;
+      width: 0%;
+    }
+
+    .title-button {
+      padding: 7px 10px;
+      margin: 4px;
+      font-size: 12px;
+      box-shadow: 0 4px 0 #c99d00;
+    }
+
+    .achievement-popup {
+      display: none;
+      position: fixed;
+      top: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: rgba(255, 204, 0, 0.96);
+      color: #2b2350;
+      padding: 18px 24px;
+      border-radius: 18px;
+      font-weight: 900;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.35);
+      text-align: center;
+      animation: popAchievement 0.35s ease-out;
+    }
+
+    @keyframes popAchievement {
+      from { transform: translateX(-50%) scale(0.75); opacity: 0; }
+      to { transform: translateX(-50%) scale(1); opacity: 1; }
+    }
+
     @media (max-width: 720px) {
       .card {
         width: 92vw;
@@ -656,6 +740,7 @@
       <div class="login-info">
         👤 로그인: <span id="currentUserName"></span>
         <button onclick="openRanking()" style="padding:8px 12px; margin-left:8px; font-size:12px;">🏆 랭킹</button>
+        <button onclick="openAchievements()" style="padding:8px 12px; margin-left:8px; font-size:12px;">🏅 업적</button>
         <button onclick="logout()" style="padding:8px 12px; margin-left:8px; font-size:12px;">로그아웃</button>
       </div>
       <div class="wide-layout">
@@ -801,6 +886,20 @@
     </div>
   </div>
 
+  <div id="achievementModal" class="achievement-modal">
+    <div class="achievement-card">
+      <h2>🏅 업적 & 칭호</h2>
+      <div id="achievementSummary"></div>
+      <h3>🎖 칭호 장착</h3>
+      <div id="titleList"></div>
+      <h3>🏅 업적 목록</h3>
+      <div id="achievementList"></div>
+      <button class="profile-close" onclick="closeAchievements()">닫기</button>
+    </div>
+  </div>
+
+  <div id="achievementPopup" class="achievement-popup"></div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io(window.location.origin, {
@@ -812,6 +911,7 @@
     let isHost = false;
     let latestRooms = [];
     let currentUserNickname = "";
+    let shownAchievementKey = "";
 
     let playerId = sessionStorage.getItem("wordChainPlayerId");
     if (!playerId) {
@@ -1000,6 +1100,7 @@
         <div class="profile-row"><span>🔥 현재 연승</span><span>${profile.currentWinStreak}</span></div>
         <div class="profile-row"><span>👑 최고 연승</span><span>${profile.bestWinStreak}</span></div>
         <div class="profile-row"><span>📝 사용 단어</span><span>${profile.wordsUsed}</span></div>
+        <div class="profile-row"><span>🏅 업적</span><span>${profile.achievementCount || 0} / ${profile.achievementTotal || 0}</span></div>
         <div class="profile-row"><span>🎖 칭호</span><span>${(profile.titles || []).join(", ")}</span></div>
       `;
 
@@ -1013,7 +1114,7 @@
       const rewards = result.rewards || [];
 
       const rewardHtml = rewards.length > 0
-        ? rewards.map(item => `<div>${item.result === "win" ? "🏆" : "💀"} ${item.nickname}: +${item.xp}XP / +${item.coins}코인${item.leveledUp ? " 🎉 LEVEL UP!" : ""}</div>`).join("")
+        ? rewards.map(item => `<div>${item.result === "win" ? "🏆" : "💀"} ${item.nickname}: +${item.xp}XP / +${item.coins}코인${item.leveledUp ? " 🎉 LEVEL UP!" : ""}${item.achievements && item.achievements.length ? " / 🏅 " + item.achievements.map(a => a.name).join(", ") : ""}</div>`).join("")
         : "<div>보상 정보 없음</div>";
 
       const orderHtml = order.length > 0
@@ -1309,6 +1410,19 @@
         winnerName.textContent = room.winnerText || "승자 없음";
         renderMatchResult(room);
         document.getElementById("resultBox").style.display = "block";
+
+        const myReward = room.matchResult && room.matchResult.rewards
+          ? room.matchResult.rewards.find(r => r.nickname === currentUserNickname)
+          : null;
+
+        const achievementKey = myReward && myReward.achievements
+          ? myReward.achievements.map(a => a.id).join(",")
+          : "";
+
+        if (achievementKey && achievementKey !== shownAchievementKey) {
+          shownAchievementKey = achievementKey;
+          showAchievementPopup(myReward.achievements);
+        }
         document.getElementById("rematchButton").style.display = isHost ? "inline-block" : "none";
       } else {
         winnerBox.style.display = "none";
@@ -1382,8 +1496,81 @@
       `;
     }
 
+
+    function rarityLabel(rarity) {
+      if (rarity === "normal") return "🟢 일반";
+      if (rarity === "rare") return "🔵 희귀";
+      if (rarity === "epic") return "🟣 영웅";
+      if (rarity === "legend") return "🟠 전설";
+      return "일반";
+    }
+
+    function openAchievements() {
+      socket.emit("getAchievements", { nickname: currentUserNickname });
+    }
+
+    function closeAchievements() {
+      document.getElementById("achievementModal").style.display = "none";
+    }
+
+    function selectTitle(title) {
+      socket.emit("selectTitle", { title });
+    }
+
+    function showAchievementPopup(items) {
+      if (!items || items.length === 0) return;
+
+      const popup = document.getElementById("achievementPopup");
+      const first = items[0];
+
+      popup.innerHTML = `
+        <div>🏅 업적 달성!</div>
+        <div style="font-size:20px; margin-top:4px;">${first.name}</div>
+        <div>+${first.xp}XP / +${first.coins}코인</div>
+      `;
+
+      popup.style.display = "block";
+
+      setTimeout(() => {
+        popup.style.display = "none";
+      }, 3200);
+    }
+
+    function renderAchievements(data) {
+      const profile = data.profile;
+      const achievements = data.achievements || [];
+
+      document.getElementById("achievementSummary").innerHTML = `
+        <div class="profile-row"><span>달성 업적</span><span>${profile.achievementCount} / ${profile.achievementTotal}</span></div>
+        <div class="profile-row"><span>현재 칭호</span><span>${profile.selectedTitle || "없음"}</span></div>
+      `;
+
+      document.getElementById("titleList").innerHTML = (profile.titles || []).map(title => `
+        <button class="title-button" onclick="selectTitle('${title}')">
+          ${title === profile.selectedTitle ? "✅ " : ""}${title}
+        </button>
+      `).join("");
+
+      document.getElementById("achievementList").innerHTML = achievements.map(item => `
+        <div class="achievement-row ${item.unlocked ? "unlocked" : ""}">
+          <div class="rarity-${item.rarity}">${rarityLabel(item.rarity)}</div>
+          <div style="font-size:18px;">${item.unlocked ? "✅" : "⬜"} ${item.name}</div>
+          <div>${item.desc}</div>
+          <div>${item.value} / ${item.target}</div>
+          <div class="progress-wrap"><div class="progress-bar" style="width:${item.percent}%"></div></div>
+          <div>보상: +${item.xp}XP / +${item.coins}코인 / 칭호 ${item.title}</div>
+        </div>
+      `).join("");
+
+      document.getElementById("achievementModal").style.display = "flex";
+    }
+
     socket.on("profileData", (profile) => {
       showProfile(profile);
+    });
+
+    socket.on("achievementData", (data) => {
+      renderAchievements(data);
     });
 
     socket.on("rankingData", (data) => {

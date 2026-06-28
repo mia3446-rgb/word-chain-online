@@ -23,10 +23,28 @@ const allWords = [];
 const startMap = new Map();
 const oneShotCache = new Map();
 
-const playersFile = path.join(__dirname, "players.json");
+const dataDir = process.env.DATA_DIR || path.join(__dirname, "data");
+
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+const playersFile = path.join(dataDir, "players.json");
+const oldPlayersFile = path.join(__dirname, "players.json");
+
+if (!fs.existsSync(playersFile) && fs.existsSync(oldPlayersFile)) {
+  try {
+    fs.copyFileSync(oldPlayersFile, playersFile);
+    console.log("기존 players.json 데이터를 data 폴더로 복사했습니다.");
+  } catch (err) {
+    console.log("기존 players.json 복사 실패:", err.message);
+  }
+}
+
 let playerData = {};
 
 function loadPlayerData() {
+  console.log(`플레이어 데이터 저장 위치: ${playersFile}`);
   try {
     if (fs.existsSync(playersFile)) {
       playerData = JSON.parse(fs.readFileSync(playersFile, "utf8"));
@@ -92,7 +110,9 @@ function getDefaultProfile(nickname) {
     bestWinStreak: 0,
     wordsUsed: 0,
     titles: ["🌱 초보자"],
-    selectedTitle: "🌱 초보자"
+    selectedTitle: "🌱 초보자",
+    achievements: [],
+    achievementRewardsClaimed: []
   };
 }
 
@@ -124,7 +144,201 @@ function addXp(profile, amount) {
   return leveledUp;
 }
 
+
+const ACHIEVEMENTS = [
+  {
+    id: "first_win",
+    name: "🏆 첫 승",
+    desc: "처음으로 1승 달성",
+    rarity: "normal",
+    target: 1,
+    xp: 100,
+    coins: 100,
+    title: "🏆 첫 승",
+    getValue: p => p.wins
+  },
+  {
+    id: "games_10",
+    name: "🎮 게임 10판",
+    desc: "게임 10판 플레이",
+    rarity: "normal",
+    target: 10,
+    xp: 150,
+    coins: 150,
+    title: "🎮 꾸준한 도전자",
+    getValue: p => p.games
+  },
+  {
+    id: "words_100",
+    name: "📚 단어 100개",
+    desc: "단어 100개 사용",
+    rarity: "normal",
+    target: 100,
+    xp: 200,
+    coins: 200,
+    title: "📚 단어 수집가",
+    getValue: p => p.wordsUsed
+  },
+  {
+    id: "streak_3",
+    name: "🔥 3연승",
+    desc: "최고 3연승 달성",
+    rarity: "rare",
+    target: 3,
+    xp: 250,
+    coins: 300,
+    title: "🔥 연승러",
+    getValue: p => p.bestWinStreak
+  },
+  {
+    id: "streak_5",
+    name: "🔥 5연승",
+    desc: "최고 5연승 달성",
+    rarity: "rare",
+    target: 5,
+    xp: 400,
+    coins: 600,
+    title: "🔥 불꽃 연승",
+    getValue: p => p.bestWinStreak
+  },
+  {
+    id: "wins_10",
+    name: "👑 10승",
+    desc: "10승 달성",
+    rarity: "rare",
+    target: 10,
+    xp: 500,
+    coins: 800,
+    title: "👑 끝말장인",
+    getValue: p => p.wins
+  },
+  {
+    id: "words_1000",
+    name: "📖 단어 1000개",
+    desc: "단어 1000개 사용",
+    rarity: "epic",
+    target: 1000,
+    xp: 1000,
+    coins: 1500,
+    title: "📖 단어왕",
+    getValue: p => p.wordsUsed
+  },
+  {
+    id: "wins_50",
+    name: "🏅 50승",
+    desc: "50승 달성",
+    rarity: "epic",
+    target: 50,
+    xp: 1500,
+    coins: 2500,
+    title: "🏅 승리 수집가",
+    getValue: p => p.wins
+  },
+  {
+    id: "streak_10",
+    name: "⚡ 10연승",
+    desc: "최고 10연승 달성",
+    rarity: "epic",
+    target: 10,
+    xp: 1600,
+    coins: 3000,
+    title: "⚡ 무패 질주",
+    getValue: p => p.bestWinStreak
+  },
+  {
+    id: "wins_100",
+    name: "💯 100승",
+    desc: "100승 달성",
+    rarity: "legend",
+    target: 100,
+    xp: 3000,
+    coins: 5000,
+    title: "💯 백전백승",
+    getValue: p => p.wins
+  }
+];
+
+function ensureAchievementFields(profile) {
+  if (!profile.achievements) profile.achievements = [];
+  if (!profile.achievementRewardsClaimed) profile.achievementRewardsClaimed = [];
+  if (!profile.titles) profile.titles = ["🌱 초보자"];
+  if (!profile.selectedTitle) profile.selectedTitle = "🌱 초보자";
+}
+
+function grantAchievement(profile, achievement) {
+  ensureAchievementFields(profile);
+
+  if (profile.achievements.includes(achievement.id)) return null;
+
+  profile.achievements.push(achievement.id);
+
+  let leveledUp = false;
+
+  if (!profile.achievementRewardsClaimed.includes(achievement.id)) {
+    profile.achievementRewardsClaimed.push(achievement.id);
+    leveledUp = addXp(profile, achievement.xp);
+    profile.coins += achievement.coins;
+  }
+
+  if (achievement.title && !profile.titles.includes(achievement.title)) {
+    profile.titles.push(achievement.title);
+  }
+
+  return {
+    id: achievement.id,
+    name: achievement.name,
+    desc: achievement.desc,
+    rarity: achievement.rarity,
+    xp: achievement.xp,
+    coins: achievement.coins,
+    title: achievement.title,
+    leveledUp
+  };
+}
+
+function checkAchievements(profile) {
+  ensureAchievementFields(profile);
+
+  const unlocked = [];
+
+  for (const achievement of ACHIEVEMENTS) {
+    const value = achievement.getValue(profile);
+
+    if (value >= achievement.target && !profile.achievements.includes(achievement.id)) {
+      const result = grantAchievement(profile, achievement);
+      if (result) unlocked.push(result);
+    }
+  }
+
+  return unlocked;
+}
+
+function getAchievementProgress(profile) {
+  ensureAchievementFields(profile);
+
+  return ACHIEVEMENTS.map(achievement => {
+    const value = achievement.getValue(profile);
+    const unlocked = profile.achievements.includes(achievement.id);
+
+    return {
+      id: achievement.id,
+      name: achievement.name,
+      desc: achievement.desc,
+      rarity: achievement.rarity,
+      value: Math.min(value, achievement.target),
+      target: achievement.target,
+      percent: Math.min(100, Math.floor((value / achievement.target) * 100)),
+      unlocked,
+      xp: achievement.xp,
+      coins: achievement.coins,
+      title: achievement.title
+    };
+  });
+}
+
 function updateTitles(profile) {
+  ensureAchievementFields(profile);
+
   if (profile.wins >= 1 && !profile.titles.includes("🏆 첫 승")) {
     profile.titles.push("🏆 첫 승");
   }
@@ -161,7 +375,10 @@ function publicProfile(nickname) {
     bestWinStreak: profile.bestWinStreak,
     wordsUsed: profile.wordsUsed,
     selectedTitle: profile.selectedTitle || "",
-    titles: profile.titles || []
+    titles: profile.titles || [],
+    achievements: profile.achievements || [],
+    achievementCount: (profile.achievements || []).length,
+    achievementTotal: ACHIEVEMENTS.length
   };
 }
 
@@ -791,6 +1008,7 @@ function applyMatchRewards(room) {
     const leveledUp = addXp(profile, xpGain);
     profile.coins += coinGain;
     updateTitles(profile);
+    const unlockedAchievements = checkAchievements(profile);
 
     room.rewards.push({
       nickname: player.nickname,
@@ -798,7 +1016,8 @@ function applyMatchRewards(room) {
       xp: xpGain,
       coins: coinGain,
       level: profile.level,
-      leveledUp
+      leveledUp,
+      achievements: unlockedAchievements
     });
   }
 
@@ -1684,6 +1903,7 @@ io.on("connection", (socket) => {
       profile.wordsUsed++;
       addXp(profile, 1);
       updateTitles(profile);
+      checkAchievements(profile);
       savePlayerData();
     }
 
@@ -1701,6 +1921,39 @@ io.on("connection", (socket) => {
 
   socket.on("getProfile", ({ nickname }) => {
     socket.emit("profileData", publicProfile(nickname));
+  });
+
+  socket.on("getAchievements", ({ nickname }) => {
+    const profile = ensureProfile(nickname || socket.data.nickname);
+    socket.emit("achievementData", {
+      profile: publicProfile(profile.nickname),
+      achievements: getAchievementProgress(profile)
+    });
+  });
+
+  socket.on("selectTitle", ({ title }) => {
+    const nickname = socket.data.nickname;
+    if (!nickname) {
+      socket.emit("errorMessage", "로그인 후 사용할 수 있습니다.");
+      return;
+    }
+
+    const profile = ensureProfile(nickname);
+    ensureAchievementFields(profile);
+
+    if (!profile.titles.includes(title)) {
+      socket.emit("errorMessage", "보유하지 않은 칭호입니다.");
+      return;
+    }
+
+    profile.selectedTitle = title;
+    savePlayerData();
+
+    socket.emit("profileData", publicProfile(nickname));
+    socket.emit("achievementData", {
+      profile: publicProfile(nickname),
+      achievements: getAchievementProgress(profile)
+    });
   });
 
   socket.on("sendChat", ({ roomCode, text }) => {
