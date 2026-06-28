@@ -417,6 +417,8 @@ function stopTimer(room) {
     room.timer = null;
   }
 
+  room.turnDeadline = 0;
+
   if (room.botTimeout) {
     clearTimeout(room.botTimeout);
     room.botTimeout = null;
@@ -865,16 +867,38 @@ function startTurnTimer(roomCode) {
     return;
   }
 
-  stopTimer(room);
+  if (room.timer) {
+    clearInterval(room.timer);
+    room.timer = null;
+  }
+
+  room.turnDeadline = 0;
+
+  if (room.botTimeout) {
+    clearTimeout(room.botTimeout);
+    room.botTimeout = null;
+  }
+
   room.timeLeft = room.timeLimit;
-  sendRoomUpdate(roomCode);
-  scheduleBotTurn(roomCode);
+  room.turnDeadline = Date.now() + room.timeLimit * 1000;
+  room.timerToken = (room.timerToken || 0) + 1;
+
+  const token = room.timerToken;
 
   room.timer = setInterval(() => {
     const r = rooms[roomCode];
 
     if (!r || r.status !== "playing") {
-      if (r) stopTimer(r);
+      if (r && r.timer) {
+        clearInterval(r.timer);
+        r.timer = null;
+      }
+      return;
+    }
+
+    if (r.timerToken !== token) {
+      clearInterval(r.timer);
+      r.timer = null;
       return;
     }
 
@@ -885,7 +909,8 @@ function startTurnTimer(roomCode) {
       return;
     }
 
-    r.timeLeft--;
+    const remaining = Math.ceil((r.turnDeadline - Date.now()) / 1000);
+    r.timeLeft = Math.max(0, remaining);
 
     if (r.timeLeft <= 0) {
       const player = currentPlayer(r);
@@ -894,7 +919,10 @@ function startTurnTimer(roomCode) {
     }
 
     sendRoomUpdate(roomCode);
-  }, 1000);
+  }, 500);
+
+  sendRoomUpdate(roomCode);
+  scheduleBotTurn(roomCode);
 }
 
 function setTimeLimitByTurn(room) {
@@ -1095,14 +1123,34 @@ function chooseBotWord(room, difficulty) {
   }
 
   if (difficulty === "hell") {
-    // 지옥: 한방단어가 있으면 즉시 사용, 아니면 가장 불리한 수 선택
-    if (oneShotWords.length > 0) {
+    // 지옥: 한방단어는 조금만 줄여서 사용, 없으면 5턴 안에 몰아붙이는 수 선택
+    if (oneShotWords.length > 0 && Math.random() < 0.75) {
       return oneShotWords
         .slice()
         .sort((a, b) => a.length - b.length)[0];
     }
 
-    return candidates
+    const nonOneShot = candidates.filter(word => !isOneShotWord(word));
+    const source = nonOneShot.length > 0 ? nonOneShot : candidates;
+
+    // 다음 사람이 받을 수 있는 단어 수가 1~5개인 단어를 최우선으로 선택
+    // 즉, 바로 끝내지는 않지만 5턴 안에 죽을 가능성이 큰 압박 수
+    const killSoonWords = source
+      .filter(word => {
+        const nextCount = getNextCount(word);
+        return nextCount > 0 && nextCount <= 5;
+      })
+      .sort((a, b) => {
+        const scoreDiff = getNextCount(a) - getNextCount(b);
+        if (scoreDiff !== 0) return scoreDiff;
+        return a.length - b.length;
+      });
+
+    if (killSoonWords.length > 0) {
+      return killSoonWords[0];
+    }
+
+    return source
       .slice()
       .sort((a, b) => {
         const scoreDiff = getWordScoreForAttack(a) - getWordScoreForAttack(b);
@@ -1211,6 +1259,7 @@ function beginGame(roomCode) {
   room.usedWords = [];
   room.timeLimit = 20;
   room.timeLeft = 20;
+  room.turnDeadline = 0;
   room.wrongCount = 0;
   room.gameoverReason = "";
   room.winnerText = "";
@@ -1439,6 +1488,8 @@ io.on("connection", (socket) => {
       eliminationOrder: [],
       rewards: [],
       statsApplied: false,
+      turnDeadline: 0,
+      timerToken: 0,
       timer: null
     };
 
