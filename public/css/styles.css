@@ -3291,3 +3291,11 @@ body {
       }
     }
   
+
+.open-beta-auth-note {
+  margin: 8px 0 14px;
+  font-size: 12px;
+  font-weight: 900;
+  color: #8ef6ff;
+  opacity: .9;
+}

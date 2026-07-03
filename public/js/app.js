@@ -198,8 +198,11 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     ["Gold", "🥇", "골드 시즌 칭호"],
     ["Platinum", "💠", "플래티넘 배경"],
     ["Diamond", "💎", "다이아 이펙트"],
+    ["Emerald", "💚", "에메랄드 배경"],
+    ["Ruby", "❤️", "루비 입장 이펙트"],
     ["Master", "👑", "마스터 오라"],
-    ["Grandmaster", "🔥", "그랜드마스터 전용 배지"]
+    ["Grandmaster", "🔥", "그랜드마스터 배지"],
+    ["Mythic", "🌠", "신화 전용 코스메틱"]
   ];
 
   box.innerHTML = tiers.map(([name, icon, reward]) => `
@@ -259,14 +262,19 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
         return;
     }
 
-    box.innerHTML = board.map((p, i) => `
+    box.innerHTML = board.map((p, i) => {
+        const tier = p.rankTier || "Unranked";
+        const tierName = tierKo[tier] || (tier === "Unranked" ? "배치전" : tier);
+        const division = tier === "Unranked" ? "" : ` ${p.rankDivision || ""}`;
+        const lp = Number.isFinite(Number(p.rankLP)) ? Number(p.rankLP) : 0;
+        return `
         <div class="ranked-leaderboard-row">
             <strong>#${i + 1}</strong>
-            <span>${tierIcons[p.rankTier] || "📋"} ${p.nickname}</span>
-            <span>${tierKo[p.rankTier] || p.rankTier}</span>
-            <b>${p.rankLP} LP</b>
-        </div>
-    `).join("");
+            <span>${tierIcons[tier] || "📋"} ${escapeHtml(p.nickname || "Unknown")}</span>
+            <span>${tierName}${division}</span>
+            <b>${lp} LP</b>
+        </div>`;
+    }).join("");
 
 }
 
