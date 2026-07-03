@@ -2,719 +2,16 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>WORD CHAIN ARENA</title>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+  <title>WORD CHAIN ARENA · V2.9-A</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
 
-  <style>
-    body {
-      margin: 0;
-      font-family: 'Noto Sans KR', sans-serif;
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      color: white;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .card {
-      width: min(1040px, 94vw);
-      background: rgba(255,255,255,0.16);
-      padding: 34px;
-      border-radius: 30px;
-      box-shadow: 0 25px 60px rgba(0,0,0,0.3);
-      text-align: center;
-      backdrop-filter: blur(12px);
-    }
-
-    h1 {
-      font-size: 46px;
-      margin: 0;
-      font-weight: 900;
-      letter-spacing: -2px;
-      text-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-
-    .subtitle {
-      margin: 8px 0 24px;
-      opacity: 0.85;
-      font-size: 15px;
-      font-weight: 700;
-    }
-
-
-    .auth-box {
-      display: block;
-    }
-
-    .auth-tabs button {
-      box-shadow: 0 5px 0 #c99d00;
-      padding: 10px 16px;
-    }
-
-    #lobby {
-      display: none;
-    }
-
-    .login-info {
-      background: rgba(0,0,0,0.25);
-      padding: 10px;
-      border-radius: 14px;
-      margin-bottom: 12px;
-      font-weight: 900;
-      color: #fff176;
-    }
-
-    .wide-layout {
-      display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
-      gap: 18px;
-      align-items: start;
-    }
-
-    .field-label {
-      width: 85%;
-      margin: 10px auto -2px;
-      text-align: left;
-      font-size: 13px;
-      font-weight: 900;
-      color: #fff176;
-    }
-
-    .password-row {
-      width: 85%;
-      margin: 8px auto;
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-
-    .password-row input {
-      width: 100%;
-      margin: 0;
-    }
-
-    .eye-button {
-      padding: 13px 14px;
-      margin: 0;
-      box-shadow: 0 5px 0 #c99d00;
-    }
-
-    input, select {
-      width: 85%;
-      padding: 15px;
-      margin: 8px;
-      border: none;
-      border-radius: 14px;
-      font-size: 16px;
-      outline: none;
-      text-align: center;
-      font-family: 'Noto Sans KR', sans-serif;
-      font-weight: 700;
-    }
-
-    input:disabled { opacity: 0.55; }
-
-    button {
-      padding: 14px 24px;
-      margin: 8px;
-      border: none;
-      border-radius: 14px;
-      background: #ffcc00;
-      font-weight: 900;
-      cursor: pointer;
-      font-size: 15px;
-      transition: 0.15s;
-      box-shadow: 0 8px 0 #c99d00;
-      font-family: 'Noto Sans KR', sans-serif;
-    }
-
-    button:hover { transform: scale(1.05); }
-
-    button:active {
-      transform: translateY(4px);
-      box-shadow: 0 4px 0 #c99d00;
-    }
-
-    button:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    #game { display: none; }
-
-    .info {
-      background: rgba(0,0,0,0.25);
-      padding: 13px;
-      border-radius: 16px;
-      margin: 10px 0;
-      font-weight: 700;
-    }
-
-    .room {
-      font-size: 24px;
-      color: #ffe066;
-      font-weight: 900;
-    }
-
-    .room-card {
-      background: rgba(255,255,255,0.18);
-      border-radius: 16px;
-      padding: 12px;
-      margin: 10px 0;
-      font-weight: 900;
-      text-align: left;
-    }
-
-    .room-card button {
-      width: auto;
-      padding: 10px 16px;
-      font-size: 13px;
-      margin: 8px 0 0;
-    }
-
-    .room-meta {
-      opacity: 0.9;
-      font-size: 14px;
-      margin-top: 4px;
-    }
-
-    #roomList {
-      max-height: 360px;
-      overflow-y: auto;
-      padding-right: 4px;
-    }
-
-
-    .notice-box {
-      display: none;
-      background: rgba(255, 82, 82, 0.23);
-      border: 2px solid rgba(255,255,255,0.22);
-      border-radius: 18px;
-      padding: 14px;
-      margin: 12px 0;
-      font-weight: 900;
-      color: #fff176;
-      white-space: pre-line;
-      text-shadow: 0 3px 8px rgba(0,0,0,0.28);
-    }
-
-    .word-box {
-      margin: 18px 0;
-      padding: 28px;
-      border-radius: 24px;
-      background: rgba(0,0,0,0.35);
-      border: 2px solid rgba(255,255,255,0.25);
-    }
-
-    .word-label {
-      font-size: 14px;
-      opacity: 0.8;
-      font-weight: 700;
-    }
-
-    #currentWord {
-      display: block;
-      margin-top: 8px;
-      font-size: 68px;
-      font-weight: 900;
-      color: #fff176;
-      text-shadow: 0 4px 12px rgba(0,0,0,0.35);
-    }
-
-    #nextHint {
-      display: block;
-      margin-top: 6px;
-      font-size: 24px;
-      font-weight: 900;
-      color: #ffe066;
-    }
-
-    .turn-box {
-      font-size: 20px;
-      font-weight: 900;
-    }
-
-    #turnPlayer {
-      color: #ffe066;
-      font-size: 26px;
-    }
-
-    .timer {
-      font-size: 22px;
-      font-weight: 900;
-    }
-
-    .timer-danger {
-      color: #ff5252;
-      animation: blink 0.7s infinite;
-    }
-
-    @keyframes blink {
-      0% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.08); opacity: 0.55; }
-      100% { transform: scale(1); opacity: 1; }
-    }
-
-    .copy-button {
-      padding: 8px 12px;
-      margin-left: 8px;
-      font-size: 13px;
-      box-shadow: 0 5px 0 #c99d00;
-    }
-
-    .section-title {
-      margin-top: 20px;
-      font-size: 18px;
-      font-weight: 900;
-    }
-
-    #players {
-      list-style: none;
-      padding: 0;
-      margin: 8px 0;
-    }
-
-    #players li {
-      background: rgba(255,255,255,0.18);
-      margin: 6px auto;
-      padding: 10px;
-      border-radius: 12px;
-      width: 88%;
-      font-weight: 900;
-    }
-
-    .disconnected {
-      opacity: 0.45;
-    }
-
-    .eliminated {
-      opacity: 0.45;
-      text-decoration: line-through;
-    }
-
-    .used-card {
-      display: inline-block;
-      background: rgba(255,255,255,0.18);
-      padding: 8px 12px;
-      border-radius: 999px;
-      margin: 4px;
-      font-weight: 900;
-      font-size: 14px;
-    }
-
-    #usedWords {
-      max-height: 170px;
-      overflow-y: auto;
-    }
-
-    #message {
-      color: #ffe066;
-      font-weight: 900;
-      min-height: 24px;
-      white-space: pre-line;
-    }
-
-    #winnerBox {
-      display: none;
-      background: rgba(255, 204, 0, 0.22);
-      border: 2px solid rgba(255, 224, 102, 0.75);
-      border-radius: 20px;
-      padding: 18px;
-      margin-top: 16px;
-      font-weight: 900;
-      color: #fff176;
-      text-shadow: 0 3px 8px rgba(0,0,0,0.25);
-    }
-
-    #winnerName {
-      font-size: 30px;
-      display: block;
-      margin-top: 6px;
-    }
-
-
-    .helper-box {
-      display: none;
-      background: rgba(0,0,0,0.25);
-      border-radius: 16px;
-      padding: 12px;
-      margin: 12px 0;
-      font-weight: 900;
-    }
-
-    .helper-title {
-      color: #ffe066;
-      margin-bottom: 8px;
-    }
-
-    #remainingWordCount {
-      color: #fff176;
-      font-size: 20px;
-    }
-
-    #recommendedWords {
-      margin-top: 8px;
-    }
-
-    .recommend-button {
-      padding: 8px 12px;
-      margin: 4px;
-      font-size: 13px;
-      box-shadow: 0 5px 0 #c99d00;
-    }
-
-    .toggle-row {
-      margin-top: 8px;
-      font-size: 13px;
-      opacity: 0.92;
-    }
-
-    .toggle-row input {
-      width: auto;
-      margin: 0 4px 0 0;
-      padding: 0;
-    }
-
-    .chat-box {
-      background: rgba(0,0,0,0.25);
-      border-radius: 16px;
-      padding: 12px;
-      margin-top: 14px;
-    }
-
-    #chatMessages {
-      height: 190px;
-      overflow-y: auto;
-      text-align: left;
-      padding: 8px;
-      background: rgba(0,0,0,0.22);
-      border-radius: 12px;
-      font-size: 14px;
-    }
-
-    .chat-message {
-      margin: 6px 0;
-      line-height: 1.35;
-      word-break: break-word;
-    }
-
-    .chat-nickname {
-      color: #ffe066;
-      font-weight: 900;
-    }
-
-    .chat-system {
-      color: #b8ffcf;
-      font-weight: 900;
-      text-align: center;
-    }
-
-    .chat-row {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      justify-content: center;
-      margin-top: 8px;
-    }
-
-    #chatInput {
-      width: 70%;
-      margin: 0;
-    }
-
-    #chatSendButton {
-      margin: 0;
-      padding: 14px 18px;
-    }
-
-
-    .ready-button, .rematch-button {
-      background: #8cff66;
-      box-shadow: 0 8px 0 #4e9c37;
-    }
-
-    .countdown-box {
-      display: none;
-      font-size: 52px;
-      font-weight: 900;
-      color: #fff176;
-      text-shadow: 0 6px 16px rgba(0,0,0,0.45);
-      margin: 16px 0;
-      animation: blink 0.7s infinite;
-    }
-
-    .result-box {
-      display: none;
-      background: rgba(0,0,0,0.28);
-      border-radius: 18px;
-      padding: 14px;
-      margin-top: 12px;
-      font-weight: 900;
-      text-align: left;
-    }
-
-    .result-box div {
-      margin: 6px 0;
-    }
-
-    .spectator-box {
-      display: none;
-      background: rgba(255,255,255,0.18);
-      border-radius: 16px;
-      padding: 12px;
-      margin: 10px 0;
-      font-weight: 900;
-      color: #ffe066;
-    }
-
-
-    .profile-modal {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.55);
-      z-index: 999;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .profile-card {
-      width: min(420px, 88vw);
-      background: rgba(30,30,60,0.96);
-      border-radius: 24px;
-      padding: 24px;
-      box-shadow: 0 20px 70px rgba(0,0,0,0.45);
-      border: 2px solid rgba(255,255,255,0.18);
-      font-weight: 900;
-    }
-
-    .profile-card h2 {
-      margin: 0 0 12px;
-      color: #fff176;
-    }
-
-    .profile-row {
-      background: rgba(255,255,255,0.12);
-      border-radius: 12px;
-      padding: 10px;
-      margin: 7px 0;
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-    }
-
-    .profile-close {
-      margin-top: 14px;
-    }
-
-
-    .ranking-modal {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.55);
-      z-index: 998;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .ranking-card {
-      width: min(720px, 92vw);
-      max-height: 86vh;
-      overflow-y: auto;
-      background: rgba(30,30,60,0.97);
-      border-radius: 24px;
-      padding: 24px;
-      box-shadow: 0 20px 70px rgba(0,0,0,0.45);
-      border: 2px solid rgba(255,255,255,0.18);
-      font-weight: 900;
-    }
-
-    .ranking-card h2 {
-      margin: 0 0 12px;
-      color: #fff176;
-    }
-
-    .ranking-tabs button {
-      padding: 10px 12px;
-      margin: 4px;
-      font-size: 13px;
-      box-shadow: 0 5px 0 #c99d00;
-    }
-
-    .ranking-list {
-      margin-top: 12px;
-      text-align: left;
-    }
-
-    .ranking-row {
-      background: rgba(255,255,255,0.12);
-      border-radius: 12px;
-      padding: 10px;
-      margin: 7px 0;
-      display: grid;
-      grid-template-columns: 60px 1fr auto;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .ranking-rank {
-      color: #fff176;
-      font-size: 18px;
-    }
-
-    .ranking-name {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .ranking-value {
-      color: #b8ffcf;
-    }
-
-    .my-rank-box {
-      background: rgba(255, 204, 0, 0.18);
-      border-radius: 14px;
-      padding: 12px;
-      margin-top: 14px;
-      text-align: left;
-    }
-
-
-    .achievement-modal {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.58);
-      z-index: 997;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .achievement-card {
-      width: min(760px, 92vw);
-      max-height: 86vh;
-      overflow-y: auto;
-      background: rgba(25,25,55,0.98);
-      border-radius: 24px;
-      padding: 24px;
-      box-shadow: 0 20px 70px rgba(0,0,0,0.45);
-      border: 2px solid rgba(255,255,255,0.18);
-      font-weight: 900;
-    }
-
-    .achievement-row {
-      background: rgba(255,255,255,0.12);
-      border-radius: 14px;
-      padding: 12px;
-      margin: 8px 0;
-      text-align: left;
-    }
-
-    .achievement-row.unlocked {
-      background: rgba(255, 204, 0, 0.18);
-      border: 1px solid rgba(255, 224, 102, 0.55);
-    }
-
-    .rarity-normal { color: #b8ffcf; }
-    .rarity-rare { color: #7cc7ff; }
-    .rarity-epic { color: #d69cff; }
-    .rarity-legend { color: #ffcc66; }
-
-    .progress-wrap {
-      height: 12px;
-      background: rgba(0,0,0,0.28);
-      border-radius: 999px;
-      margin-top: 8px;
-      overflow: hidden;
-    }
-
-    .progress-bar {
-      height: 100%;
-      background: #ffcc00;
-      width: 0%;
-    }
-
-    .title-button {
-      padding: 7px 10px;
-      margin: 4px;
-      font-size: 12px;
-      box-shadow: 0 4px 0 #c99d00;
-    }
-
-    .achievement-popup {
-      display: none;
-      position: fixed;
-      top: 22px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 1000;
-      background: rgba(255, 204, 0, 0.96);
-      color: #2b2350;
-      padding: 18px 24px;
-      border-radius: 18px;
-      font-weight: 900;
-      box-shadow: 0 15px 40px rgba(0,0,0,0.35);
-      text-align: center;
-      animation: popAchievement 0.35s ease-out;
-    }
-
-    @keyframes popAchievement {
-      from { transform: translateX(-50%) scale(0.75); opacity: 0; }
-      to { transform: translateX(-50%) scale(1); opacity: 1; }
-    }
-
-    @media (max-width: 720px) {
-      .card {
-        width: 92vw;
-        padding: 24px;
-      }
-
-  
-    .auth-box {
-      display: block;
-    }
-
-    .auth-tabs button {
-      box-shadow: 0 5px 0 #c99d00;
-      padding: 10px 16px;
-    }
-
-    #lobby {
-      display: none;
-    }
-
-    .login-info {
-      background: rgba(0,0,0,0.25);
-      padding: 10px;
-      border-radius: 14px;
-      margin-bottom: 12px;
-      font-weight: 900;
-      color: #fff176;
-    }
-
-    .wide-layout {
-        grid-template-columns: 1fr;
-      }
-
-      h1 {
-        font-size: 36px;
-      }
-
-      #currentWord {
-        font-size: 52px;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="/css/styles.css">
 </head>
 
-<body>
+<body class="polish-on v20a-ui v29a-ui">
   <div class="card">
-    <h1>⚔️ WORD CHAIN ARENA</h1>
-    <div class="subtitle">실시간 온라인 끝말잇기</div>
+    <h1 class="v20-logo">⚔ WORD CHAIN ARENA</h1>
+    <div class="subtitle">V2.9-A · Competitive Season Update</div>
 
     <div id="authBox" class="auth-box">
       <div class="info">
@@ -741,53 +38,151 @@
         👤 로그인: <span id="currentUserName"></span>
         <button onclick="openRanking()" style="padding:8px 12px; margin-left:8px; font-size:12px;">🏆 랭킹</button>
         <button onclick="openAchievements()" style="padding:8px 12px; margin-left:8px; font-size:12px;">🏅 업적</button>
+        <button onclick="openQuests()" style="padding:8px 12px; margin-left:8px; font-size:12px;">📜 퀘스트</button>
+        <button onclick="openFriends()" style="padding:8px 12px; margin-left:8px; font-size:12px;">🤝 친구</button>
+        <button onclick="openDailyLogin()" style="padding:8px 12px; margin-left:8px; font-size:12px;">📅 출석</button>
+        <button onclick="openCollection()" style="padding:8px 12px; margin-left:8px; font-size:12px;">🏛 컬렉션</button>
+        <button class="notification-bell" onclick="openNotifications()" style="padding:8px 12px;margin-left:8px;font-size:12px;">🔔 알림<span id="notificationCount" class="notification-count">0</span></button>
+        <button onclick="openShop()" style="padding:8px 12px; margin-left:8px; font-size:12px;">🛒 상점</button>
+        <button class="settings-button" onclick="openSettings()">⚙️ 설정</button>
         <button onclick="logout()" style="padding:8px 12px; margin-left:8px; font-size:12px;">로그아웃</button>
       </div>
-      <div class="wide-layout">
-        <div>
-          <div class="info">
-            <h3>🏠 방 만들기</h3>
+
+      <div class="v23-shell">
+        <div class="v23-topbar">
+          <div>
+            <div class="v23-brand">⚔ WORD CHAIN ARENA</div>
+            <div style="font-weight:900; opacity:0.82;">V2.9-A · Dark Glass UI · Competitive Season</div>
+          </div>
+          <div class="v23-season">
+            <span class="v23-pill v29-pill-ranked">🏆 Ranked S1</span>
+            <span class="v23-pill">V2.9-A</span>
+            <span class="v23-pill">Competitive Season</span>
+            <span id="v23DevPill" class="v23-pill" style="display:none;">🛠 DEV</span>
+          </div>
+        </div>
+
+        <div class="v23-card v23-player">
+          <div class="v23-card-title">PLAYER</div>
+          <div class="v23-avatar">⚔</div>
+          <div>
+            <div id="v23PlayerName" class="v23-player-name">로그인 중</div>
+            <div class="v23-player-sub"><span id="v23PlayerLevel">Lv.1</span> · <span id="v23PlayerTitle">칭호 없음</span></div>
+          </div>
+
+          <div>
+            <div class="v23-xp-label">
+              <span>XP</span>
+              <span id="v23XpText">0 / 100</span>
+            </div>
+            <div class="xp-progress-wrap"><div id="v23XpBar" class="xp-progress-bar" style="width:0%"></div></div>
+          </div>
+
+          <div class="v23-stats">
+            <div class="v23-stat">💰 코인<strong id="v23Coins">0</strong></div>
+            <div class="v23-stat">🏆 승리<strong id="v23Wins">0</strong></div>
+            <div class="v23-stat">📈 승률<strong id="v23WinRate">0%</strong></div>
+            <div class="v23-stat">⭐ 성장력<strong id="v23Growth">0</strong></div>
+          </div>
+
+          <div class="v23-quick-menu">
+            <button class="v29-ranked-btn-inline" onclick="openCompetitiveSeason()">🏆 랭크 시즌</button>
+            <button onclick="openShop()">🛒 상점</button>
+            <button onclick="openRanking()">🏆 랭킹</button>
+            <button onclick="openAchievements()">🏅 업적</button>
+            <button onclick="openQuests()">📜 퀘스트</button>
+            <button onclick="openFriends()">🤝 친구</button>
+            <button onclick="openDailyLogin()">📅 출석</button>
+            <button onclick="openCollection()">🏛 컬렉션</button>
+            <button class="notification-bell" onclick="openNotifications()">🔔 알림</button>
+            <button onclick="openSettings()">⚙ 설정</button>
+            <button onclick="openProfileByNickname(currentUserNickname)">👤 프로필</button>
+            <button onclick="logout()">🚪 로그아웃</button>
+          </div>
+        </div>
+
+        <div class="v23-card v23-play">
+          <div class="v23-play-main">▶ PLAY</div>
+          <div class="v23-play-desc">빠르게 매칭하거나 친구와 방을 만들어 플레이하세요.</div>
+
+          <div class="v23-play-buttons">
+            <button class="primary" onclick="randomMatch()">🎲 랜덤 매칭</button>
+            <button class="v29-ranked-btn-inline" onclick="openCompetitiveSeason()">🏆 랭크 시즌</button>
+            <button onclick="toggleV23Panel('v23CreateBox')">🏠 방 만들기</button>
+            <button onclick="toggleV23Panel('v23JoinBox')">🔑 방 참가</button>
+          </div>
+
+          <div id="v23CreateBox" class="v23-hidden-create">
             <div class="field-label">방 입장 비밀번호</div>
             <div class="password-row">
-              <input id="roomPassword" placeholder="친구가 방에 들어올 때 필요한 비밀번호" type="password" />
+              <input id="roomPassword" placeholder="비밀번호" type="password" />
               <button class="eye-button" onclick="togglePassword('roomPassword')">👁️</button>
             </div>
+
+            <div class="field-label">공개 여부</div>
             <select id="roomPublic">
               <option value="public">🌍 공개방</option>
               <option value="private">🔒 비공개방</option>
             </select>
+
+            <div class="field-label">봇 수</div>
             <select id="botCount">
               <option value="0">🤖 봇 없음</option>
               <option value="1">🤖 봇 1명</option>
               <option value="2">🤖 봇 2명</option>
               <option value="3">🤖 봇 3명</option>
             </select>
+
+            <div class="field-label">봇 난이도</div>
             <select id="botDifficulty">
-              <option value="veryEasy">😊 완전 쉬움</option>
-              <option value="easy">🙂 쉬움</option>
-              <option value="normal" selected>😎 중간</option>
-              <option value="hard">🔥 어려움</option>
-              <option value="hell">👿 지옥</option>
+              <option value="veryEasy">완전 쉬움</option>
+              <option value="easy">쉬움</option>
+              <option value="normal" selected>중간</option>
+              <option value="hard">어려움</option>
+              <option value="hell">지옥</option>
             </select>
-            <button onclick="createRoom()">새 방 만들기</button>
+
+            <button class="create-button" onclick="createRoom()">✨ 새 방 만들기</button>
           </div>
 
-          <div class="info">
-            <h3>🚪 방번호로 참가</h3>
+          <div id="v23JoinBox" class="v23-hidden-join">
             <input id="roomCodeInput" placeholder="방번호 입력" />
             <div class="field-label">방 입장 비밀번호</div>
             <div class="password-row">
-              <input id="joinPassword" placeholder="방 비밀번호 입력" type="password" />
+              <input id="joinPassword" placeholder="비밀번호" type="password" />
               <button class="eye-button" onclick="togglePassword('joinPassword')">👁️</button>
             </div>
-            <button onclick="joinRoom()">방 참가하기</button>
+            <button onclick="joinRoom()">입장하기</button>
           </div>
         </div>
 
-        <div class="info">
-          <h3>🏠 공개 방 목록</h3>
-          <input id="roomSearch" placeholder="방번호/방장 검색" oninput="renderRoomList()" />
-          <button onclick="loadRoomList()">새로고침</button>
+        <div class="v23-card v29-season-card">
+          <div class="v29-season-badge">🏆 COMPETITIVE SEASON 1</div>
+          <div class="v29-season-title">랭크 아레나<br>시즌 오픈 예정</div>
+          <div class="v29-season-desc">배치전 10판을 완료하고 티어를 획득하세요. MMR 기반 매칭과 시즌 보상이 준비 중입니다.</div>
+          <div class="v29-tier-preview">
+            <span class="v29-tier-chip t-bronze">Bronze</span>
+            <span class="v29-tier-chip t-silver">Silver</span>
+            <span class="v29-tier-chip t-gold active">Gold</span>
+            <span class="v29-tier-chip t-platinum">Platinum</span>
+            <span class="v29-tier-chip t-diamond">Diamond</span>
+            <span class="v29-tier-chip t-master">Master</span>
+            <span class="v29-tier-chip t-grandmaster">Grandmaster</span>
+          </div>
+          <div style="font-size:12px;font-weight:900;opacity:.85;margin-top:4px;">배치전 <strong id="v29PlacementPreview">0 / 10</strong></div>
+          <div class="v29-placement-bar"><div class="v29-placement-fill" id="v29PlacementBar" style="width:0%"></div></div>
+          <button class="v29-ranked-cta" onclick="openCompetitiveSeason()">🏆 랭크 허브 열기</button>
+          <div class="v23-mini-mission" style="margin-top:4px;">
+            <div class="v23-mission">🎯 오늘 미션: 게임 1판 플레이</div>
+            <div class="v23-mission">🔥 V2.9-A UI 리프레시 적용</div>
+          </div>
+        </div>
+
+        <div class="v23-card v23-room-wide">
+          <div class="v23-room-header">
+            <h3>🎮 공개방 목록</h3>
+            <button onclick="loadRoomList()">🔄 새로고침</button>
+          </div>
           <div id="roomList">방 목록 불러오는 중...</div>
         </div>
       </div>
@@ -799,9 +194,24 @@
           <div class="info room">
             🏠 ROOM #<span id="roomCode"></span>
             <button class="copy-button" onclick="copyRoomCode()">📋 복사</button>
+            <button class="copy-button" onclick="leaveCurrentRoom()">🚪 나가기</button>
           </div>
           <div class="info">상태: <span id="status"></span></div>
+          <div id="roomAnnouncement" class="room-announcement"></div>
           <div id="noticeBox" class="notice-box"></div>
+          <div id="roomOwnerPanel" class="room-owner-panel">
+            <strong>👑 방 관리</strong>
+            <div class="room-owner-grid">
+              <input id="ownerRoomTitle" placeholder="방 제목">
+              <input id="ownerRoomPassword" placeholder="새 비밀번호">
+              <select id="ownerMaxPlayers"><option>2</option><option>4</option><option>6</option><option selected>8</option><option>10</option><option>12</option></select>
+              <button onclick="toggleRoomLock()">🔒 잠금</button>
+              <button onclick="toggleSpectators()">👀 관전</button>
+              <button onclick="toggleRoomChat()">💬 채팅</button>
+              <button onclick="saveRoomSettings()">설정 저장</button>
+            </div>
+            <div style="display:flex;gap:7px;margin-top:8px"><input id="ownerAnnouncement" placeholder="공지 (이모지 가능)" style="margin:0;flex:1"><input id="ownerAnnouncementColor" type="color" value="#ffd54a" style="width:48px;margin:0"><button onclick="saveRoomAnnouncement()">📌 공지</button></div>
+          </div>
 
           <div class="word-box">
             <div class="word-label">현재 단어</div>
@@ -824,7 +234,7 @@
           <div class="info timer">⏱ 남은 시간: <span id="timeLimit">20</span>초</div>
           <div class="info turn-box">🎯 현재 차례<br><span id="turnPlayer"></span></div>
 
-          <div id="spectatorBox" class="spectator-box">👀 관전 중입니다. 채팅은 계속 가능합니다.</div>
+          <div id="spectatorBox" class="spectator-box">👀 관전 중입니다. 채팅은 계속 가능합니다.<select id="watchedPlayerSelect" onchange="switchWatchedPlayer(this.value)" style="margin-left:8px"></select></div>
 
           <button id="readyButton" class="ready-button" onclick="toggleReady()">✅ 준비</button>
           <button id="startButton" onclick="startGame()">게임 시작</button>
@@ -850,8 +260,9 @@
           <div class="chat-box">
             <div class="section-title">💬 채팅</div>
             <div id="chatMessages"></div>
+            <div id="typingIndicator" style="min-height:18px;font-size:11px;opacity:.7"></div>
             <div class="chat-row">
-              <input id="chatInput" placeholder="메시지 입력" maxlength="100" />
+              <input id="chatInput" placeholder="메시지 입력" maxlength="100" oninput="sendTyping()" />
               <button id="chatSendButton" onclick="sendChat()">전송</button>
             </div>
           </div>
@@ -900,709 +311,279 @@
 
   <div id="achievementPopup" class="achievement-popup"></div>
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script>
-    const socket = io(window.location.origin, {
-      transports: ["websocket", "polling"]
-    });
-
-    let myRoomCode = "";
-    let mySocketId = "";
-    let isHost = false;
-    let latestRooms = [];
-    let currentUserNickname = "";
-    let shownAchievementKey = "";
-
-    let playerId = sessionStorage.getItem("wordChainPlayerId");
-    if (!playerId) {
-      playerId = "p_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-      sessionStorage.setItem("wordChainPlayerId", playerId);
-    }
-
-    socket.on("connect", () => {
-      mySocketId = socket.id;
-      loadRoomList();
-
-      const savedNickname = localStorage.getItem("wordChainNickname");
-      const savedToken = localStorage.getItem("wordChainToken");
-
-      if (savedNickname && savedToken) {
-        socket.emit("autoLogin", { nickname: savedNickname, token: savedToken });
-      }
-    });
-
-    function register() {
-      const nickname = document.getElementById("authNickname").value.trim();
-      const password = document.getElementById("authPassword").value;
-
-      socket.emit("register", { nickname, password });
-    }
-
-    function togglePassword(id) {
-      const input = document.getElementById(id);
-      input.type = input.type === "password" ? "text" : "password";
-      input.focus();
-    }
-
-    function login() {
-      const nickname = document.getElementById("authNickname").value.trim();
-      const password = document.getElementById("authPassword").value;
-
-      socket.emit("login", { nickname, password });
-    }
-
-    function logout() {
-      localStorage.removeItem("wordChainNickname");
-      localStorage.removeItem("wordChainToken");
-      currentUserNickname = "";
-      document.getElementById("authBox").style.display = "block";
-      document.getElementById("lobby").style.display = "none";
-      socket.emit("logout");
-    }
-
-    function showLoggedIn(nickname, token) {
-      currentUserNickname = nickname;
-      localStorage.setItem("wordChainNickname", nickname);
-      localStorage.setItem("wordChainToken", token);
-
-      document.getElementById("currentUserName").textContent = nickname;
-      document.getElementById("authBox").style.display = "none";
-      document.getElementById("lobby").style.display = "block";
-    }
-
-
-
-    function createRoom() {
-      const password = document.getElementById("roomPassword").value.trim();
-      const isPublic = document.getElementById("roomPublic").value === "public";
-      const botCount = Number(document.getElementById("botCount").value);
-      const botDifficulty = document.getElementById("botDifficulty").value;
-
-      if (!currentUserNickname) return alert("로그인 먼저 해주세요.");
-      if (!password) return alert("방 입장 비밀번호를 입력하세요.");
-
-      socket.emit("createRoom", { password, playerId, isPublic, botCount, botDifficulty });
-    }
-
-    function joinRoom() {
-      const roomCode = document.getElementById("roomCodeInput").value.trim();
-      const password = document.getElementById("joinPassword").value.trim();
-
-      if (!currentUserNickname) {
-        return alert("로그인 먼저 해주세요.");
-      }
-
-      if (!roomCode) {
-        return alert("방번호를 입력하세요.");
-      }
-
-      if (!password) {
-        return alert("방 입장 비밀번호를 입력하세요.");
-      }
-
-      myRoomCode = roomCode;
-      isHost = false;
-
-      socket.emit("joinRoom", { roomCode, password, playerId });
-    }
-
-    function loadRoomList() {
-      socket.emit("getRoomList");
-    }
-
-    function fillRoomCode(code) {
-      document.getElementById("roomCodeInput").value = code;
-      document.getElementById("roomCodeInput").scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-
-    function renderRoomList() {
-      const keyword = document.getElementById("roomSearch").value.trim().toLowerCase();
-      const roomList = document.getElementById("roomList");
-
-      let rooms = latestRooms;
-
-      if (keyword) {
-        rooms = rooms.filter(room =>
-          room.code.includes(keyword) ||
-          room.hostName.toLowerCase().includes(keyword) ||
-          room.title.toLowerCase().includes(keyword)
-        );
-      }
-
-      rooms = rooms.slice(0, 10);
-
-      if (rooms.length === 0) {
-        roomList.innerHTML = "표시할 공개방이 없습니다.";
-        return;
-      }
-
-      roomList.innerHTML = rooms.map(room => {
-        const statusIcon = room.status === "waiting" ? "🟢 대기중" :
-          room.status === "playing" ? "🔴 게임중" :
-          "⚫ 종료";
-
-        const disabled = room.status === "waiting" ? "" : "disabled";
-        const lock = room.locked ? "🔒" : "🌍";
-
-        return `
-          <div class="room-card">
-            <div>${lock} ${room.title}</div>
-            <div class="room-meta">방번호: ${room.code} / 👥 ${room.players}/${room.maxPlayers} / ${statusIcon}</div>
-            <button ${disabled} onclick="fillRoomCode('${room.code}')">참가 준비</button>
-          </div>
-        `;
-      }).join("");
-    }
-
-    function startGame() {
-      socket.emit("startGame", myRoomCode);
-    }
-
-    function toggleReady() {
-      socket.emit("toggleReady", myRoomCode);
-    }
-
-    function requestRematch() {
-      socket.emit("requestRematch", myRoomCode);
-    }
-
-    function formatDuration(seconds) {
-      const m = Math.floor(seconds / 60);
-      const s = seconds % 60;
-
-      if (m <= 0) return `${s}초`;
-      return `${m}분 ${s}초`;
-    }
-
-
-    function openProfileByNickname(nickname) {
-      socket.emit("getProfile", { nickname });
-    }
-
-    function closeProfile() {
-      document.getElementById("profileModal").style.display = "none";
-    }
-
-    function showProfile(profile) {
-      const modal = document.getElementById("profileModal");
-      const name = document.getElementById("profileName");
-      const content = document.getElementById("profileContent");
-
-      name.textContent = `${profile.selectedTitle || ""} ${profile.nickname}`;
-
-      content.innerHTML = `
-        <div class="profile-row"><span>⭐ 레벨</span><span>Lv.${profile.level}</span></div>
-        <div class="profile-row"><span>✨ 경험치</span><span>${profile.xp} / ${profile.nextXp}</span></div>
-        <div class="profile-row"><span>💰 코인</span><span>${profile.coins}</span></div>
-        <div class="profile-row"><span>🏆 승리</span><span>${profile.wins}</span></div>
-        <div class="profile-row"><span>💀 패배</span><span>${profile.losses}</span></div>
-        <div class="profile-row"><span>📈 승률</span><span>${profile.winRate}%</span></div>
-        <div class="profile-row"><span>🔥 현재 연승</span><span>${profile.currentWinStreak}</span></div>
-        <div class="profile-row"><span>👑 최고 연승</span><span>${profile.bestWinStreak}</span></div>
-        <div class="profile-row"><span>📝 사용 단어</span><span>${profile.wordsUsed}</span></div>
-        <div class="profile-row"><span>🏅 업적</span><span>${profile.achievementCount || 0} / ${profile.achievementTotal || 0}</span></div>
-        <div class="profile-row"><span>🎖 칭호</span><span>${(profile.titles || []).join(", ")}</span></div>
-      `;
-
-      modal.style.display = "flex";
-    }
-
-    function renderMatchResult(room) {
-      const resultBox = document.getElementById("resultBox");
-      const result = room.matchResult || {};
-      const order = result.eliminationOrder || [];
-      const rewards = result.rewards || [];
-
-      const rewardHtml = rewards.length > 0
-        ? rewards.map(item => `<div>${item.result === "win" ? "🏆" : "💀"} ${item.nickname}: +${item.xp}XP / +${item.coins}코인${item.leveledUp ? " 🎉 LEVEL UP!" : ""}${item.achievements && item.achievements.length ? " / 🏅 " + item.achievements.map(a => a.name).join(", ") : ""}</div>`).join("")
-        : "<div>보상 정보 없음</div>";
-
-      const orderHtml = order.length > 0
-        ? order.map((item, index) => `<div>${index + 1}. ${item.nickname} - ${item.reason}</div>`).join("")
-        : "<div>탈락자 없음</div>";
-
-      resultBox.innerHTML = `
-        <div>⏱ 경기 시간: ${formatDuration(result.durationSec || 0)}</div>
-        <div>📝 사용 단어: ${result.usedWordCount || 0}개</div>
-        <div>🎁 보상</div>
-        ${rewardHtml}
-        <div>💀 탈락 순서</div>
-        ${orderHtml}
-      `;
-    }
-
-
-    let localNoticeTimer = null;
-
-    function showNotice(text, duration = 2500) {
-      const noticeBox = document.getElementById("noticeBox");
-      if (!noticeBox) return;
-
-      if (!text) {
-        noticeBox.style.display = "none";
-        noticeBox.textContent = "";
-        return;
-      }
-
-      noticeBox.textContent = text;
-      noticeBox.style.display = "block";
-
-      if (localNoticeTimer) {
-        clearTimeout(localNoticeTimer);
-        localNoticeTimer = null;
-      }
-
-      localNoticeTimer = setTimeout(() => {
-        if (noticeBox.textContent === text) {
-          noticeBox.style.display = "none";
-          noticeBox.textContent = "";
-        }
-      }, duration);
-    }
-
-    function submitWord() {
-      const wordInput = document.getElementById("wordInput");
-      const word = wordInput.value.trim();
-      if (!word) return;
-
-      socket.emit("submitWord", { roomCode: myRoomCode, word });
-      wordInput.value = "";
-      wordInput.focus();
-    }
-
-    function copyRoomCode() {
-      if (!myRoomCode) return;
-
-      navigator.clipboard.writeText(myRoomCode)
-        .then(() => {
-          const message = document.getElementById("message");
-          message.textContent = `방번호 ${myRoomCode} 복사 완료!`;
-
-          setTimeout(() => {
-            if (message.textContent.includes("복사 완료")) {
-              message.textContent = "";
-            }
-          }, 2000);
-        })
-        .catch(() => {
-          alert("복사 실패! 방번호를 직접 복사해 주세요: " + myRoomCode);
-        });
-    }
-
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && document.activeElement.id === "wordInput") {
-        event.preventDefault();
-        submitWord();
-      }
-
-      if (event.key === "Enter" && document.activeElement.id === "authPassword") {
-        event.preventDefault();
-        login();
-      }
-    });
-
-    let latestRecommendedWords = [];
-
-    function fillRecommendedWord(word) {
-      const wordInput = document.getElementById("wordInput");
-      wordInput.value = word;
-      wordInput.focus();
-    }
-
-    function renderRecommendations() {
-      const recommendedWords = document.getElementById("recommendedWords");
-      const toggle = document.getElementById("recommendToggle");
-
-      if (!recommendedWords || !toggle) return;
-
-      if (!toggle.checked) {
-        recommendedWords.innerHTML = "추천 단어 숨김";
-        return;
-      }
-
-      if (!latestRecommendedWords || latestRecommendedWords.length === 0) {
-        recommendedWords.innerHTML = "추천 단어 없음";
-        return;
-      }
-
-      recommendedWords.innerHTML = latestRecommendedWords.map(word =>
-        `<button class="recommend-button" onclick="fillRecommendedWord('${word}')">${word}</button>`
-      ).join("");
-    }
-
-
-
-    function sendChat() {
-      const chatInput = document.getElementById("chatInput");
-      const text = chatInput.value.trim();
-
-      if (!text || !myRoomCode) return;
-
-      socket.emit("sendChat", { roomCode: myRoomCode, text });
-      chatInput.value = "";
-    }
-
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && document.activeElement.id === "chatInput") {
-        sendChat();
-      }
-    });
-
-    socket.on("authSuccess", ({ nickname, token }) => {
-      showLoggedIn(nickname, token);
-      showNotice(`✅ 로그인 성공!\n\n${nickname}`, 1800);
-    });
-
-    socket.on("authError", (msg) => {
-      if (msg !== "자동 로그인 실패") {
-        showNotice(`❌ ${msg}`, 2500);
-      }
-    });
-
-    socket.on("loggedOut", () => {
-      showNotice("로그아웃 완료", 1500);
-    });
-
-    socket.on("roomList", (rooms) => {
-      latestRooms = rooms || [];
-      renderRoomList();
-    });
-
-    socket.on("roomCreated", (roomCode) => {
-      myRoomCode = roomCode;
-      isHost = true;
-
-      document.getElementById("authBox").style.display = "none";
-      document.getElementById("authBox").style.display = "none";
-      document.getElementById("authBox").style.display = "none";
-      document.getElementById("lobby").style.display = "none";
-      document.getElementById("game").style.display = "block";
-      document.getElementById("roomCode").textContent = roomCode;
-    });
-
-    socket.on("joinedRoom", (roomCode) => {
-      myRoomCode = roomCode;
-      isHost = false;
-
-      document.getElementById("lobby").style.display = "none";
-      document.getElementById("game").style.display = "block";
-      document.getElementById("roomCode").textContent = roomCode;
-    });
-
-    socket.on("roomUpdate", (room) => {
-      document.getElementById("lobby").style.display = "none";
-      document.getElementById("game").style.display = "block";
-
-      document.getElementById("roomCode").textContent = myRoomCode;
-
-      isHost = room.hostId === playerId;
-
-      const statusText =
-        room.status === "waiting" ? "🟡 대기중" :
-        room.status === "countdown" ? "⏳ 카운트다운" :
-        room.status === "playing" ? "🟢 게임중" :
-        "🔴 게임오버";
-
-      document.getElementById("status").textContent = statusText;
-
-      if (room.notice) {
-        showNotice(room.notice, Math.max(1200, (room.noticeUntil || Date.now() + 2000) - Date.now()));
-      }
-
-      document.getElementById("currentWord").textContent = room.currentWord || "없음";
-
-      if (room.currentWord && room.nextStarts && room.nextStarts.length > 0) {
-        document.getElementById("nextHint").textContent = `(${room.nextStarts.join("/")})`;
-      } else {
-        document.getElementById("nextHint").textContent = "";
-      }
-
-      const helperBox = document.getElementById("helperBox");
-
-      if (room.status === "playing" && room.currentWord) {
-        helperBox.style.display = "block";
-
-        document.getElementById("requiredStarts").textContent =
-          room.requiredStarts && room.requiredStarts.length > 0 ? room.requiredStarts.join(" / ") : "-";
-
-        document.getElementById("remainingWordCount").textContent = room.remainingWordCount ?? 0;
-
-        latestRecommendedWords = room.recommendedWords || [];
-        renderRecommendations();
-      } else {
-        helperBox.style.display = "none";
-        latestRecommendedWords = [];
-      }
-
-      const timerBox = document.querySelector(".timer");
-      document.getElementById("timeLimit").textContent = room.timeLeft ?? 20;
-
-      if (room.status === "playing" && (room.timeLeft ?? 20) <= 5) {
-        timerBox.classList.add("timer-danger");
-      } else {
-        timerBox.classList.remove("timer-danger");
-      }
-
-      document.getElementById("turnPlayer").textContent =
-        room.turnPlayerName ? room.turnPlayerName : "";
-
-      document.getElementById("players").innerHTML =
-        room.players.map((p, index) => {
-          const icon = p.playerId === room.turnPlayerId && room.status === "playing" && !p.eliminated ? "👑" : (p.isBot ? "🤖" : "⚔️");
-          const host = p.playerId === room.hostId ? " 👑방장" : "";
-          const offline = p.connected ? "" : " (연결 끊김)";
-          const eliminated = p.eliminated ? " 💀탈락" : "";
-          const ready = room.status === "waiting" && !p.isBot ? (room.readyPlayers && room.readyPlayers[p.playerId] ? " ✅준비" : " ⏳미준비") : "";
-          const cls =
-            (p.connected ? "" : "disconnected ") +
-            (p.eliminated ? "eliminated" : "");
-
-          const profileText = p.profile ? ` Lv.${p.profile.level} ${p.profile.selectedTitle || ""}` : "";
-          const click = p.isBot ? "" : `onclick="openProfileByNickname('${p.nickname}')" style="cursor:pointer"`;
-          return `<li class="${cls.trim()}" ${click}>${icon}${profileText} ${p.nickname}${host}${offline}${eliminated}${ready}</li>`;
-        }).join("");
-
-      document.getElementById("usedWords").innerHTML =
-        room.usedWords.map(w => `<span class="used-card">🍎 ${w}</span>`).join("");
-
-      const countdownBox = document.getElementById("countdownBox");
-      if (room.status === "countdown") {
-        countdownBox.style.display = "block";
-        countdownBox.textContent = room.countdown || "START";
-      } else {
-        countdownBox.style.display = "none";
-      }
-
-      const readyButton = document.getElementById("readyButton");
-      const startButton = document.getElementById("startButton");
-
-      const myReady = room.readyPlayers && room.readyPlayers[playerId];
-
-      readyButton.style.display = room.status === "waiting" ? "inline-block" : "none";
-      readyButton.textContent = myReady ? "✅ 준비 완료" : "✅ 준비";
-      startButton.style.display = room.status === "waiting" && isHost ? "inline-block" : "none";
-      startButton.disabled = !room.canStart;
-
-      const myPlayer = room.players.find(p => p.playerId === playerId);
-      const isSpectator = room.status === "playing" && myPlayer && myPlayer.eliminated;
-      document.getElementById("spectatorBox").style.display = isSpectator ? "block" : "none";
-
-      const myTurn = room.status === "playing" && room.turnPlayerId === playerId;
-      const wordInput = document.getElementById("wordInput");
-
-      document.getElementById("submitButton").disabled = !myTurn;
-      wordInput.disabled = !myTurn;
-      document.getElementById("chatInput").disabled = false;
-      document.getElementById("chatSendButton").disabled = false;
-
-      const activeId = document.activeElement ? document.activeElement.id : "";
-
-      if (myTurn && activeId !== "chatInput") {
-        wordInput.focus();
-      }
-
-      const winnerBox = document.getElementById("winnerBox");
-      const winnerName = document.getElementById("winnerName");
-
-      if (room.status === "gameover") {
-        document.getElementById("message").textContent = room.gameoverReason || "게임오버!";
-        winnerBox.style.display = "block";
-        winnerName.textContent = room.winnerText || "승자 없음";
-        renderMatchResult(room);
-        document.getElementById("resultBox").style.display = "block";
-
-        const myReward = room.matchResult && room.matchResult.rewards
-          ? room.matchResult.rewards.find(r => r.nickname === currentUserNickname)
-          : null;
-
-        const achievementKey = myReward && myReward.achievements
-          ? myReward.achievements.map(a => a.id).join(",")
-          : "";
-
-        if (achievementKey && achievementKey !== shownAchievementKey) {
-          shownAchievementKey = achievementKey;
-          showAchievementPopup(myReward.achievements);
-        }
-        document.getElementById("rematchButton").style.display = isHost ? "inline-block" : "none";
-      } else {
-        winnerBox.style.display = "none";
-        winnerName.textContent = "";
-        document.getElementById("resultBox").style.display = "none";
-        document.getElementById("rematchButton").style.display = "none";
-
-        if (room.lastNotice) {
-          document.getElementById("message").textContent = room.lastNotice;
-        }
-      }
-    });
-
-
-    let latestRankingData = null;
-    let currentRankingType = "wins";
-
-    function openRanking() {
-      socket.emit("getRankings");
-    }
-
-    function closeRanking() {
-      document.getElementById("rankingModal").style.display = "none";
-    }
-
-    function getRankTitle(type) {
-      if (type === "wins") return "🏆 승리 랭킹";
-      if (type === "winRate") return "📈 승률 랭킹 (10판 이상)";
-      if (type === "level") return "⭐ 레벨 랭킹";
-      if (type === "coins") return "💰 코인 랭킹";
-      if (type === "streak") return "🔥 최고 연승 랭킹";
-      return "🏆 랭킹";
-    }
-
-    function medal(rank) {
-      if (rank === 1) return "🥇";
-      if (rank === 2) return "🥈";
-      if (rank === 3) return "🥉";
-      return `#${rank}`;
-    }
-
-    function renderRanking(type) {
-      if (!latestRankingData) return;
-
-      currentRankingType = type;
-      const list = latestRankingData[type] || [];
-      const rankingList = document.getElementById("rankingList");
-      const myRankBox = document.getElementById("myRankBox");
-
-      if (list.length === 0) {
-        rankingList.innerHTML = `<h3>${getRankTitle(type)}</h3><div>아직 랭킹 데이터가 없습니다.</div>`;
-      } else {
-        rankingList.innerHTML = `
-          <h3>${getRankTitle(type)}</h3>
-          ${list.map(item => `
-            <div class="ranking-row">
-              <div class="ranking-rank">${medal(item.rank)}</div>
-              <div class="ranking-name">${item.selectedTitle || ""} ${item.nickname}</div>
-              <div class="ranking-value">${item.value}</div>
-            </div>
-          `).join("")}
-        `;
-      }
-
-      const my = latestRankingData.myRanks || {};
-      const myRankText = my[type] ? `${my[type]}위` : "집계 조건 미달";
-
-      myRankBox.innerHTML = `
-        <div>👤 내 순위</div>
-        <div>${getRankTitle(type)} : ${myRankText}</div>
-      `;
-    }
-
-
-    function rarityLabel(rarity) {
-      if (rarity === "normal") return "🟢 일반";
-      if (rarity === "rare") return "🔵 희귀";
-      if (rarity === "epic") return "🟣 영웅";
-      if (rarity === "legend") return "🟠 전설";
-      return "일반";
-    }
-
-    function openAchievements() {
-      socket.emit("getAchievements", { nickname: currentUserNickname });
-    }
-
-    function closeAchievements() {
-      document.getElementById("achievementModal").style.display = "none";
-    }
-
-    function selectTitle(title) {
-      socket.emit("selectTitle", { title });
-    }
-
-    function showAchievementPopup(items) {
-      if (!items || items.length === 0) return;
-
-      const popup = document.getElementById("achievementPopup");
-      const first = items[0];
-
-      popup.innerHTML = `
-        <div>🏅 업적 달성!</div>
-        <div style="font-size:20px; margin-top:4px;">${first.name}</div>
-        <div>+${first.xp}XP / +${first.coins}코인</div>
-      `;
-
-      popup.style.display = "block";
-
-      setTimeout(() => {
-        popup.style.display = "none";
-      }, 3200);
-    }
-
-    function renderAchievements(data) {
-      const profile = data.profile;
-      const achievements = data.achievements || [];
-
-      document.getElementById("achievementSummary").innerHTML = `
-        <div class="profile-row"><span>달성 업적</span><span>${profile.achievementCount} / ${profile.achievementTotal}</span></div>
-        <div class="profile-row"><span>현재 칭호</span><span>${profile.selectedTitle || "없음"}</span></div>
-      `;
-
-      document.getElementById("titleList").innerHTML = (profile.titles || []).map(title => `
-        <button class="title-button" onclick="selectTitle('${title}')">
-          ${title === profile.selectedTitle ? "✅ " : ""}${title}
-        </button>
-      `).join("");
-
-      document.getElementById("achievementList").innerHTML = achievements.map(item => `
-        <div class="achievement-row ${item.unlocked ? "unlocked" : ""}">
-          <div class="rarity-${item.rarity}">${rarityLabel(item.rarity)}</div>
-          <div style="font-size:18px;">${item.unlocked ? "✅" : "⬜"} ${item.name}</div>
-          <div>${item.desc}</div>
-          <div>${item.value} / ${item.target}</div>
-          <div class="progress-wrap"><div class="progress-bar" style="width:${item.percent}%"></div></div>
-          <div>보상: +${item.xp}XP / +${item.coins}코인 / 칭호 ${item.title}</div>
+  <div id="shopModal" class="shop-modal">
+    <div class="shop-card shop-remake-card">
+      <div class="shop-remake-header">
+        <div>
+          <h2>🛒 SHOP</h2>
+          <div class="shop-remake-sub">꾸미기 · 효과 · 프로필 아이템 관리</div>
         </div>
-      `).join("");
+        <div id="shopCoins" class="shop-remake-wallet"></div>
+      </div>
 
-      document.getElementById("achievementModal").style.display = "flex";
-    }
+      <div class="shop-remake-layout">
+        <aside class="shop-remake-sidebar">
+          <button onclick="renderShop('all')">⭐ 전체</button>
+          <button onclick="renderShop('boxes')">📦 상자</button>
+          <button onclick="renderShop('nameColor')">🌈 닉네임</button>
+          <button onclick="renderShop('nameEffect')">✨ 이름 효과</button>
+          <button onclick="renderShop('chatBubble')">💬 말풍선</button>
+          <button onclick="renderShop('profileBorder')">🛡 테두리</button>
+          <button onclick="renderShop('profileBackground')">🖼 배경</button>
+          <button onclick="renderShop('profileBadge')">🏅 배지</button>
+          <button onclick="renderShop('entranceEffect')">🚪 입장</button>
+          <button onclick="renderShop('chatEffect')">💬 채팅 효과</button>
+          <button onclick="renderShop('victoryEffect')">🏆 승리 효과</button>
+          <button onclick="renderShop('levelUpEffect')">⭐ 레벨업</button>
+          <button onclick="renderShop('title')">🏷 칭호</button>
+        </aside>
 
-    socket.on("profileData", (profile) => {
-      showProfile(profile);
-    });
-
-    socket.on("achievementData", (data) => {
-      renderAchievements(data);
-    });
-
-    socket.on("rankingData", (data) => {
-      latestRankingData = data;
-      document.getElementById("rankingModal").style.display = "flex";
-      renderRanking(currentRankingType);
-    });
-
-    socket.on("chatUpdate", (messages) => {
-      const chatMessages = document.getElementById("chatMessages");
-
-      if (!chatMessages) return;
-
-      chatMessages.innerHTML = (messages || []).map(msg => {
-        if (msg.type === "system") {
-          return `<div class="chat-message chat-system">${msg.text}</div>`;
-        }
-
-        return `
-          <div class="chat-message">
-            <span class="chat-nickname">${msg.nickname}</span>
-            <span>: ${msg.text}</span>
+        <main class="shop-remake-main">
+          <div class="shop-remake-topline">
+            <div id="shopCategoryTitle">전체 아이템</div>
+            <div id="shopInventoryMini"></div>
           </div>
-        `;
-      }).join("");
+          <div id="shopList"></div>
+        </main>
 
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-    });
+        <aside class="shop-remake-preview">
+          <div class="shop-preview-title">미리보기</div>
+          <div class="shop-preview-avatar">⚔</div>
+          <div id="shopPreviewName" class="shop-preview-name">WordChain Player</div>
+          <div id="shopPreviewDetail" class="shop-preview-detail">아이템을 선택하면 설명이 표시됩니다.</div>
+          <div class="shop-preview-tip">보유 아이템은 바로 장착할 수 있어요.</div>
+        </aside>
+      </div>
 
-    socket.on("errorMessage", (msg) => {
-      showNotice(msg, 2800);
-    });
-  </script>
+      <button class="profile-close" onclick="closeShop()">닫기</button>
+    </div>
+  </div>
+
+  <div id="questModal" class="premium-modal">
+    <div class="premium-panel">
+      <div class="premium-panel-head"><h2>📜 퀘스트 센터</h2><button onclick="closePremiumModal('questModal')">닫기</button></div>
+      <div class="premium-panel-body">
+        <div class="premium-tabs">
+          <button onclick="renderQuests('starter')">🌱 스타터</button>
+          <button onclick="renderQuests('daily')">☀️ 일일</button>
+          <button onclick="renderQuests('weekly')">📆 주간</button>
+          <button onclick="renderQuests('achievement')">🏆 도전</button>
+        </div>
+        <div id="questList" class="quest-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="friendsModal" class="premium-modal">
+    <div class="premium-panel">
+      <div class="premium-panel-head"><h2>🤝 친구 <span id="friendCount"></span></h2><button onclick="closePremiumModal('friendsModal')">닫기</button></div>
+      <div class="premium-panel-body">
+        <div class="friend-toolbar"><input id="friendSearchInput" placeholder="플레이어 닉네임 검색" oninput="renderFriends(latestFriendsData)"><select id="friendFilter" onchange="renderFriends(latestFriendsData)"><option value="all">전체</option><option value="online">온라인</option><option value="favorite">즐겨찾기</option></select><select onchange="setSocialStatus(this.value)"><option value="online">온라인</option><option value="dnd">방해 금지</option></select><button onclick="searchFriends()">검색</button></div>
+        <div id="friendRequests"></div>
+        <h3>친구 목록</h3>
+        <div id="friendList" class="friend-list"></div>
+        <h3>검색 결과</h3>
+        <div id="friendSearchResults" class="friend-list"></div>
+        <h3>차단한 플레이어</h3>
+        <div id="blockedPlayerList" class="friend-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="dailyLoginModal" class="premium-modal">
+    <div class="premium-panel">
+      <div class="premium-panel-head"><h2>📅 30일 출석 보상</h2><button onclick="closePremiumModal('dailyLoginModal')">닫기</button></div>
+      <div class="premium-panel-body">
+        <div id="dailyLoginSummary" class="daily-summary"></div>
+        <div id="dailyCalendar" class="daily-calendar"></div>
+        <button id="dailyClaimButton" onclick="claimDailyLogin()" style="width:100%;margin-top:16px;">오늘의 보상 받기</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="boxOpeningOverlay" class="box-opening-overlay">
+    <div class="opening-flash"></div>
+    <div class="box-opening-stage">
+      <div id="openingBoxIcon" class="opening-box">📦</div>
+      <div id="openingRewardCard" class="opening-reward-card">
+        <div id="openingRewardTitle" style="color:var(--open-color);font-size:18px;">보상 획득</div>
+        <div id="openingRewardIcon" class="opening-reward-icon">🎁</div>
+        <div id="openingRewardText" style="font-size:23px;font-weight:1000;"></div>
+        <div id="openingRewardSub" style="margin-top:8px;opacity:.78;"></div>
+      </div>
+      <button class="opening-confirm" onclick="closeBoxOpening()">확인</button>
+    </div>
+  </div>
+
+  <div id="whisperPopup" class="whisper-popup">
+    <div style="display:flex;justify-content:space-between;gap:10px"><strong id="whisperSender">💌 귓속말</strong><span id="whisperTime"></span></div>
+    <div id="whisperContent" class="whisper-content"></div>
+    <div class="whisper-actions"><button onclick="replyWhisper()">답장</button><button onclick="viewWhisperProfile()">프로필 보기</button><button onclick="addWhisperFriend()">친구 추가</button><button onclick="blockWhisperSender()">차단</button><button onclick="closeWhisperPopup()">닫기</button></div>
+  </div>
+
+  <div id="collectionModal" class="premium-modal">
+    <div class="premium-panel" style="width:min(1120px,96vw)">
+      <div class="premium-panel-head"><h2>🏛 컬렉션</h2><button onclick="closePremiumModal('collectionModal')">닫기</button></div>
+      <div class="premium-panel-body">
+        <div id="collectionHero" class="collection-hero"></div>
+        <div id="collectionStats" class="collection-grid" style="margin-bottom:14px"></div>
+        <div id="collectionMilestones" class="collection-milestones"></div>
+        <div class="collection-controls">
+          <input id="collectionSearch" placeholder="아이템 검색" oninput="scheduleCollectionRender()">
+          <select id="collectionCategory" onchange="renderCollectionItems()"><option value="all">전체 카테고리</option></select>
+          <select id="collectionFilter" onchange="renderCollectionItems()"><option value="all">전체</option><option value="owned">보유</option><option value="missing">미보유</option><option value="normal">일반</option><option value="rare">희귀</option><option value="epic">영웅</option><option value="legend">전설</option><option value="mythic">신화</option></select>
+          <select id="collectionSort" onchange="renderCollectionItems()"><option value="newest">최신순</option><option value="alphabetical">이름순</option></select>
+        </div>
+        <div id="collectionItems" class="collection-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="prestigeOverlay" class="prestige-overlay"><div><div class="prestige-emblem">♛</div><h1 id="prestigeOverlayTitle">PRESTIGE</h1><p>새로운 전설이 시작됩니다.</p><button onclick="closePrestigeCelebration()">확인</button></div></div>
+
+  <div id="notificationModal" class="premium-modal"><div class="premium-panel"><div class="premium-panel-head"><h2>🔔 알림 센터</h2><button onclick="closePremiumModal('notificationModal')">닫기</button></div><div class="premium-panel-body"><button onclick="markNotificationsRead()">모두 읽음</button><div id="notificationList" class="notification-list"></div></div></div></div>
+  <div id="partyInvitePopup" class="party-invite-popup"><h2>🎉 파티 초대</h2><div id="partyInviteText"></div><div id="partyInviteTimer" style="margin:10px 0;color:#fff176"></div><div style="display:flex;gap:8px"><button onclick="acceptPartyInvite()">수락</button><button onclick="declinePartyInvite()">거절</button></div></div>
+  <div id="playerContextMenu" class="player-context-menu"></div>
+
+  <div id="competitiveModal" class="competitive-modal">
+    <div class="competitive-panel">
+      <div class="competitive-head">
+        <div>
+          <h2>🏆 Competitive Season</h2>
+          <div class="competitive-sub">Season 1 · Word Chain Ranked</div>
+        </div>
+        <button class="competitive-close" onclick="closeCompetitiveSeason()">닫기</button>
+      </div>
+      <div class="competitive-body">
+        <div class="competitive-grid">
+          <div>
+            <div class="competitive-hero">
+              <div class="competitive-tier-emblem" id="competitiveTierEmblem">🥇</div>
+              <div class="competitive-tier-name" id="competitiveTierName">Unranked</div>
+              <div class="competitive-mmr">Division <strong id="competitiveMmr">—</strong> · LP <strong id="competitiveLp">0</strong></div>
+              <div class="competitive-placement">
+                <div class="competitive-placement-label">
+                  <span>📋 배치전</span>
+                  <span id="competitivePlacementText">0 / 10</span>
+                </div>
+                <div class="v29-placement-bar"><div class="v29-placement-fill" id="competitivePlacementBar" style="width:0%"></div></div>
+                <div style="font-size:11px;opacity:.75;margin-top:8px;font-weight:800;">10판 완료 후 티어가 확정됩니다</div>
+              </div>
+            </div>
+            <div class="competitive-tier-ladder">
+              <div class="competitive-tier-row" data-tier="bronze"><span class="tier-icon">🥉</span> 브론즈</div>
+<div class="competitive-tier-row" data-tier="silver"><span class="tier-icon">🥈</span> 실버</div>
+<div class="competitive-tier-row" data-tier="gold"><span class="tier-icon">🥇</span> 골드</div>
+<div class="competitive-tier-row" data-tier="platinum"><span class="tier-icon">💠</span> 플래티넘</div>
+<div class="competitive-tier-row" data-tier="diamond"><span class="tier-icon">💎</span> 다이아몬드</div>
+<div class="competitive-tier-row" data-tier="emerald"><span class="tier-icon">💚</span> 에메랄드</div>
+<div class="competitive-tier-row" data-tier="ruby"><span class="tier-icon">❤️</span> 루비</div>
+<div class="competitive-tier-row" data-tier="master"><span class="tier-icon">👑</span> 마스터</div>
+<div class="competitive-tier-row" data-tier="grandmaster"><span class="tier-icon">🔥</span> 그랜드마스터</div>
+<div class="competitive-tier-row" data-tier="mythic"><span class="tier-icon">🌠</span> 신화</div>
+            </div>
+          </div>
+
+          <div>
+            <div class="competitive-section">
+              <h3>📊 시즌 전적</h3>
+              <div class="competitive-stats">
+                <div class="competitive-stat">승리<strong id="competitiveWins">0</strong></div>
+                <div class="competitive-stat">패배<strong id="competitiveLosses">0</strong></div>
+                <div class="competitive-stat">승률<strong id="competitiveWinRate">—</strong></div>
+                <div class="competitive-stat">배치<strong id="competitiveStreak">0 / 10</strong></div>
+                <div class="competitive-stat">최고 티어<strong id="competitivePeak">—</strong></div>
+                <div class="competitive-stat">시즌 LP<strong id="competitiveSeasonLp">0</strong></div>
+              </div>
+            </div>
+            <div class="competitive-section competitive-history">
+              <h3>📜 최근 전적</h3>
+              <div class="competitive-placeholder" id="competitiveMatchHistory">
+                아직 랭크 전적이 없습니다.<br>
+                <span style="opacity:.7;font-size:12px;">배치전 및 랭크 매치 기록이 여기에 표시됩니다.</span>
+              </div>
+            </div>
+            <div class="competitive-section competitive-leaderboard">
+              <h3>🏅 시즌 리더보드</h3>
+              <div class="competitive-placeholder" id="competitiveLeaderboard">
+                리더보드 준비 중…<br>
+                <span style="opacity:.7;font-size:12px;">Grandmaster ~ Bronze 티어별 TOP 플레이어</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="competitive-section">
+              <h3>🎁 시즌 보상</h3>
+              <div class="competitive-rewards">
+                <div class="competitive-reward-item locked">
+                  <span class="reward-icon">🥉</span>
+                  <div><strong>Bronze</strong><br><span style="opacity:.75;font-size:11px;">프로필 테두리 · 200 코인</span></div>
+                </div>
+                <div class="competitive-reward-item locked">
+                  <span class="reward-icon">🥈</span>
+                  <div><strong>Silver</strong><br><span style="opacity:.75;font-size:11px;">채팅 버블 · 400 코인</span></div>
+                </div>
+                <div class="competitive-reward-item locked">
+                  <span class="reward-icon">🥇</span>
+                  <div><strong>Gold</strong><br><span style="opacity:.75;font-size:11px;">이름 색상 · 800 코인</span></div>
+                </div>
+                <div class="competitive-reward-item locked">
+                  <span class="reward-icon">💠</span>
+                  <div><strong>Platinum</strong><br><span style="opacity:.75;font-size:11px;">입장 이펙트 · 1,200 코인</span></div>
+                </div>
+                <div class="competitive-reward-item locked">
+                  <span class="reward-icon">💎</span>
+                  <div><strong>Diamond</strong><br><span style="opacity:.75;font-size:11px;">승리 이펙트 · 에픽 상자</span></div>
+                </div>
+                <div class="competitive-reward-item locked">
+                  <span class="reward-icon">👑</span>
+                  <div><strong>Master</strong><br><span style="opacity:.75;font-size:11px;">독점 칭호 · 레전드 상자</span></div>
+                </div>
+                <div class="competitive-reward-item locked">
+                  <span class="reward-icon">⚔</span>
+                  <div><strong>Grandmaster</strong><br><span style="opacity:.75;font-size:11px;">시즌 한정 신화 코스메틱</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="competitive-coming-soon">
+              <button class="v29-ranked-cta" onclick="joinRankedQueue()">⚔️ 랭크 매칭 시작</button>
+              <div id="competitiveQueueStatus" style="margin-top:8px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<div id="rankEventOverlay" class="rank-event-overlay">
+  <div class="rank-event-card">
+    <div id="rankEventTitle" class="rank-event-title">PROMOTION!</div>
+    <div id="rankEventIcon" class="rank-event-icon">🎉</div>
+    <div id="rankEventText" class="rank-event-text">Gold II</div>
+    <button onclick="closeRankEventOverlay()">확인</button>
+  </div>
+</div>
+
+  <script src="/socket.io/socket.io.js"></script>
+
+  <div id="settingsModal" class="settings-modal">
+    <div class="settings-card">
+      <h2>⚙️ 설정</h2>
+      <div class="settings-row">
+        <span>🔊 효과음</span>
+        <button onclick="toggleSetting('sound')"><span id="soundSettingText">ON</span></button>
+      </div>
+      <div class="settings-row">
+        <span>✨ 애니메이션</span>
+        <button onclick="toggleSetting('animation')"><span id="animationSettingText">ON</span></button>
+      </div>
+      <button class="profile-close" onclick="closeSettings()">닫기</button>
+    </div>
+  </div>
+
+  <div id="polishToast" class="polish-toast"></div>
+
+<script src="/js/app.js"></script>
 </body>
 </html>
