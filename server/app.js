@@ -1625,12 +1625,18 @@ function getRandomStartWord() {
 }
 
 function stopTimer(room) {
+  room.timerToken = (room.timerToken || 0) + 1;
+
   if (room.timer) {
     clearInterval(room.timer);
     room.timer = null;
   }
 
   room.turnDeadline = 0;
+  room.timerStartedAt = 0;
+  room.timerRoomCode = "";
+  room.turnSerial = (room.turnSerial || 0) + 1;
+  room.processingTurn = false;
 
   if (room.botTimeout) {
     clearTimeout(room.botTimeout);
@@ -1652,6 +1658,7 @@ function findPlayer(room, playerId) {
 }
 
 function normalizeTurn(room) {
+  if (!room || !Array.isArray(room.players)) return null;
   const alive = activePlayers(room);
 
   if (alive.length === 0) {
@@ -1661,13 +1668,13 @@ function normalizeTurn(room) {
 
   const current = room.players[room.turn];
 
-  if (current && !current.eliminated && current.connected) {
+  if (current && !current.eliminated && current.connected && !current.isSpectator) {
     return current;
   }
 
   for (let i = 0; i < room.players.length; i++) {
     const p = room.players[i];
-    if (p && !p.eliminated && p.connected) {
+    if (p && !p.eliminated && p.connected && !p.isSpectator) {
       room.turn = i;
       return p;
     }
@@ -1689,12 +1696,49 @@ function nextActiveTurn(room, startIndex) {
     const idx = (startIndex + i) % room.players.length;
     const p = room.players[idx];
 
-    if (p && !p.eliminated && p.connected) {
+    if (p && !p.eliminated && p.connected && !p.isSpectator) {
       return idx;
     }
   }
 
   return 0;
+}
+
+function isValidTurnPlayer(player) {
+  return !!(player && player.connected && !player.eliminated && !player.isSpectator);
+}
+
+function ensureTurnState(room, roomCode, { restartOnRepair = false, reason = "" } = {}) {
+  if (!room || room.status !== "playing") return false;
+
+  const alive = activePlayers(room);
+
+  if (alive.length <= 1) {
+    gameOver(roomCode, "마지막 1명만 남았습니다.");
+    return false;
+  }
+
+  const before = room.turn;
+  const beforePlayer = room.players[before];
+  const player = normalizeTurn(room);
+
+  if (!player) {
+    gameOver(roomCode, "현재 턴을 진행할 플레이어가 없습니다.");
+    return false;
+  }
+
+  if (before !== room.turn || !isValidTurnPlayer(beforePlayer)) {
+    room.wrongCount = 0;
+    room.lastNotice = reason || `${player.nickname}님의 턴으로 복구되었습니다.`;
+    sendRoomUpdate(roomCode);
+
+    if (restartOnRepair) {
+      startTurnTimer(roomCode);
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function getWinnerText(room) {
@@ -2169,6 +2213,16 @@ function startTurnTimer(roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
 
+  if (room.status !== "playing") {
+    stopTimer(room);
+    sendRoomUpdate(roomCode);
+    return;
+  }
+
+  if (!ensureTurnState(room, roomCode, { restartOnRepair: false })) {
+    return;
+  }
+
   normalizeTurn(room);
 
   if (room.status === "playing" && activePlayers(room).length <= 1) {
@@ -2191,8 +2245,13 @@ function startTurnTimer(roomCode) {
   room.timeLeft = room.timeLimit;
   room.turnDeadline = Date.now() + room.timeLimit * 1000;
   room.timerToken = (room.timerToken || 0) + 1;
+  room.turnSerial = (room.turnSerial || 0) + 1;
+  room.timerStartedAt = Date.now();
+  room.timerRoomCode = roomCode;
+  room.processingTurn = false;
 
   const token = room.timerToken;
+  const serial = room.turnSerial;
 
   room.timer = setInterval(() => {
     const r = rooms[roomCode];
@@ -2205,9 +2264,16 @@ function startTurnTimer(roomCode) {
       return;
     }
 
-    if (r.timerToken !== token) {
+    if (r.timerToken !== token || r.turnSerial !== serial) {
       clearInterval(r.timer);
       r.timer = null;
+      return;
+    }
+
+    if (!ensureTurnState(r, roomCode, {
+      restartOnRepair: true,
+      reason: "턴 정보가 어긋나 자동 복구되었습니다."
+    })) {
       return;
     }
 
@@ -2223,6 +2289,15 @@ function startTurnTimer(roomCode) {
 
     if (r.timeLeft <= 0) {
       const player = currentPlayer(r);
+      if (!isValidTurnPlayer(player)) {
+        ensureTurnState(r, roomCode, {
+          restartOnRepair: true,
+          reason: "현재 턴 플레이어가 없어 자동으로 다음 턴으로 넘어갑니다."
+        });
+        return;
+      }
+      if (r.processingTurn || r.timerToken !== token || r.turnSerial !== serial) return;
+      r.processingTurn = true;
       eliminatePlayer(roomCode, player, "시간 초과");
       return;
     }
@@ -2503,6 +2578,9 @@ function scheduleBotTurn(roomCode) {
   if (!player || !player.isBot || player.eliminated || !player.connected) return;
 
   const delay = getBotDelay(player.botDifficulty);
+  const token = room.timerToken || 0;
+  const serial = room.turnSerial || 0;
+  const botPlayerId = player.playerId;
 
   if (room.botTimeout) {
     clearTimeout(room.botTimeout);
@@ -2512,10 +2590,12 @@ function scheduleBotTurn(roomCode) {
   room.botTimeout = setTimeout(() => {
     const r = rooms[roomCode];
     if (!r || r.status !== "playing") return;
+    r.botTimeout = null;
+    if (r.timerToken !== token || r.turnSerial !== serial || r.processingTurn) return;
 
     const bot = currentPlayer(r);
 
-    if (!bot || !bot.isBot || bot.playerId !== player.playerId || bot.eliminated) return;
+    if (!bot || !bot.isBot || bot.playerId !== botPlayerId || bot.eliminated || !bot.connected) return;
 
     const word = chooseBotWord(r, bot.botDifficulty);
 
@@ -3454,17 +3534,25 @@ registerSocketHandlers(io, (socket) => {
     }
     if (room.isLocked) return socket.emit("errorMessage","방장이 방을 잠갔습니다.");
 
-    if (room.password && room.password !== String(password)) {
+    const existingPlayer = findPlayer(room, playerId);
+    const reconnectingSamePlayer = existingPlayer && existingPlayer.nickname === nickname;
+
+    if (room.password && room.password !== String(password) && !reconnectingSamePlayer) {
       socket.emit("errorMessage", "비밀번호가 올바르지 않습니다.");
       return;
     }
 
-    if (room.status === "playing") {
+    const canReconnectToActiveRoom = room.status === "playing"
+      && existingPlayer
+      && existingPlayer.nickname === nickname
+      && !existingPlayer.isBot;
+
+    if (room.status === "playing" && !canReconnectToActiveRoom) {
       socket.emit("errorMessage", "이미 게임이 시작된 방입니다.");
       return;
     }
 
-    if (room.players.filter(p=>p.connected&&!p.isSpectator).length >= room.maxPlayers && !findPlayer(room, playerId)) {
+    if (room.players.filter(p=>p.connected&&!p.isSpectator).length >= room.maxPlayers && !existingPlayer) {
       socket.emit("errorMessage", "방이 가득 찼습니다.");
       return;
     }
@@ -3536,6 +3624,7 @@ registerSocketHandlers(io, (socket) => {
     const room=ownedRoomForSocket(socket);
     if (!room||playerId===room.hostId) return socket.emit("errorMessage","추방할 수 없는 플레이어입니다.");
     const target=findPlayer(room,String(playerId));if (!target||target.isBot) return socket.emit("errorMessage","플레이어를 찾을 수 없습니다.");
+    const wasTurn=room.players[room.turn]&&room.players[room.turn].playerId===target.playerId;
     const client=io.sockets.sockets.get(target.socketId);
     if (client) { client.leave(socket.data.roomCode);client.data.roomCode=null;client.emit("kickedFromRoom","방장에 의해 추방되었습니다."); }
     if (room.status==="playing") {target.connected=false;target.eliminated=true;addElimination(room,target,"방장 추방");}
@@ -3554,6 +3643,7 @@ registerSocketHandlers(io, (socket) => {
   socket.on("leaveRoom", () => {
     const roomCode=socket.data.roomCode;const room=rooms[roomCode];const player=room&&findPlayer(room,socket.data.playerId);
     if (!room||!player) return;
+    const wasTurn=room.players[room.turn]&&room.players[room.turn].playerId===player.playerId;
     socket.leave(roomCode);room.players=room.players.filter(p=>p.playerId!==player.playerId);
     delete room.readyPlayers[player.playerId];
     if (room.hostId===player.playerId) {
@@ -3563,6 +3653,10 @@ registerSocketHandlers(io, (socket) => {
     socket.data.roomCode=null;socket.emit("leftRoom");
     if (!room.players.some(p=>p.connected&&!p.isBot)) {stopTimer(room);delete rooms[roomCode];}
     else {addSystemMessage(roomCode,`🚪 ${player.nickname}님이 나갔습니다.`);sendRoomUpdate(roomCode);}
+    if (room.status==="playing"&&wasTurn&&rooms[roomCode]) {
+      room.turn=nextActiveTurn(room,Math.max(0,room.turn-1));
+      startTurnTimer(roomCode);
+    }
     broadcastRoomList();broadcastFriendPresence(player.nickname);
   });
 
@@ -3626,7 +3720,7 @@ registerSocketHandlers(io, (socket) => {
     const room = rooms[roomCode];
     if (!room || room.status !== "playing") return;
 
-    normalizeTurn(room);
+    if (!ensureTurnState(room, roomCode, { restartOnRepair: true })) return;
     word = String(word || "").trim();
 
     const submittingPlayer=findPlayer(room,socket.data.playerId);
@@ -3637,6 +3731,8 @@ registerSocketHandlers(io, (socket) => {
       socket.emit("errorMessage", "네 차례가 아닙니다.");
       return;
     }
+
+    if (room.processingTurn) return;
 
     function wrong(msg) {
       room.wrongCount++;
@@ -3690,6 +3786,9 @@ registerSocketHandlers(io, (socket) => {
         return;
       }
     }
+
+    if (room.processingTurn) return;
+    room.processingTurn = true;
 
     room.currentWord = word;
     room.usedWords.push(word);
@@ -3878,9 +3977,15 @@ registerSocketHandlers(io, (socket) => {
 
     const room = rooms[roomCode];
     const player = findPlayer(room, playerId);
+    const wasTurn = room.players[room.turn] && room.players[room.turn].playerId === playerId;
 
     if (player && player.socketId === socket.id) {
       player.connected = false;
+    }
+
+    if (room.status === "playing" && wasTurn) {
+      room.turn = nextActiveTurn(room, room.turn);
+      startTurnTimer(roomCode);
     }
 
     sendRoomUpdate(roomCode);

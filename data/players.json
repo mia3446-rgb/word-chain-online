@@ -1,1 +1,325 @@
-{}
+{
+  "kimmo125": {
+    "nickname": "kimmo125",
+    "passwordHash": "bfa70c35cf862cb329ec04c44e046730d1b1f6812f6f45bf1b93714dfdb952ef",
+    "salt": "d5e51d2b5e2aec92fecf0b7be8b712e9",
+    "sessionToken": "15c5edb26581553fc61134ebc2713544a98b172656c8cb53",
+    "createdAt": 1783682035453,
+    "level": 6,
+    "xp": 100,
+    "totalXp": 1100,
+    "coins": 1578,
+    "wins": 4,
+    "losses": 1,
+    "games": 5,
+    "currentWinStreak": 3,
+    "bestWinStreak": 3,
+    "wordsUsed": 20,
+    "titles": [
+      "🌱 초보자",
+      "🏆 첫 승",
+      "🔥 연승러",
+      "🌟 성장하는 자"
+    ],
+    "selectedTitle": "🌱 초보자",
+    "achievements": [
+      "first_win",
+      "streak_3"
+    ],
+    "achievementRewardsClaimed": [
+      "first_win",
+      "streak_3"
+    ],
+    "levelUps": 5,
+    "claimedLevelRewards": [
+      2,
+      3,
+      5
+    ],
+    "inventory": [],
+    "equipped": {
+      "nameColor": "default",
+      "chatBubble": "default",
+      "profileBorder": "default",
+      "entranceEffect": "default",
+      "nameEffect": "default",
+      "profileBackground": "default",
+      "profileBadge": "default",
+      "chatEffect": "default",
+      "victoryEffect": "default",
+      "levelUpEffect": "default"
+    },
+    "boxes": {
+      "common": 0,
+      "rare": 0,
+      "epic": 0,
+      "legendary": 0
+    },
+    "boxPity": {
+      "common": 0,
+      "rare": 0,
+      "epic": 0,
+      "legendary": 0
+    },
+    "quests": {
+      "dailyKey": "2026-07-10",
+      "weeklyKey": "2026-07-06",
+      "dailyStats": {
+        "games": 5,
+        "wins": 4,
+        "words": 20,
+        "xp": 750
+      },
+      "weeklyStats": {
+        "games": 5,
+        "wins": 4,
+        "words": 20,
+        "xp": 750
+      },
+      "claimed": []
+    },
+    "friends": [],
+    "friendRequests": [],
+    "blockedPlayers": [],
+    "favoriteFriends": [],
+    "socialStatus": "online",
+    "notifications": [
+      {
+        "id": "911309caa0fb",
+        "type": "daily",
+        "text": "DAY 1 출석 보상 획득",
+        "data": {
+          "day": 1
+        },
+        "time": 1783682037944,
+        "read": false
+      },
+      {
+        "id": "dd7be30da839",
+        "type": "level_up",
+        "text": "레벨 3 달성",
+        "data": {
+          "level": 3
+        },
+        "time": 1783682371463,
+        "read": false
+      },
+      {
+        "id": "559841339674",
+        "type": "achievement",
+        "text": "🏆 첫 승 달성",
+        "data": {
+          "achievementId": "first_win"
+        },
+        "time": 1783682371464,
+        "read": false
+      },
+      {
+        "id": "37a92444e33a",
+        "type": "level_up",
+        "text": "레벨 4 달성",
+        "data": {
+          "level": 4
+        },
+        "time": 1783682554605,
+        "read": false
+      },
+      {
+        "id": "34ff50a9a852",
+        "type": "level_up",
+        "text": "레벨 6 달성",
+        "data": {
+          "level": 6
+        },
+        "time": 1783683024104,
+        "read": false
+      },
+      {
+        "id": "4b7c8890e811",
+        "type": "achievement",
+        "text": "🔥 3연승 달성",
+        "data": {
+          "achievementId": "streak_3"
+        },
+        "time": 1783683024105,
+        "read": false
+      }
+    ],
+    "dailyLogin": {
+      "lastClaimDate": "2026-07-10",
+      "streak": 1,
+      "totalDays": 1
+    },
+    "prestige": 0,
+    "collectionRewardsClaimed": [],
+    "favorites": {
+      "cosmeticId": "",
+      "title": "",
+      "badgeId": ""
+    },
+    "rankTier": "Unranked",
+    "rankDivision": 4,
+    "rankLP": 0,
+    "rankedWins": 0,
+    "rankedLosses": 0,
+    "placementMatchesPlayed": 0,
+    "placementWins": 0,
+    "rankedMatchHistory": [],
+    "seasonHighestTier": "Unranked",
+    "seasonHighestLP": 0
+  },
+  "테스트": {
+    "nickname": "테스트",
+    "passwordHash": "3ae9c35365115f00d18886b7050a57eea5446d92c24756bcb175cbc9119fc50b",
+    "salt": "48b5498730a5eebb8673fdb2a1ec6af6",
+    "sessionToken": "79f692fc103c3fcc65630e963a0c30f32983288fa36771bd",
+    "createdAt": 1783682137057,
+    "level": 4,
+    "xp": 3,
+    "totalXp": 453,
+    "coins": 714,
+    "wins": 1,
+    "losses": 2,
+    "games": 3,
+    "currentWinStreak": 0,
+    "bestWinStreak": 1,
+    "wordsUsed": 18,
+    "titles": [
+      "🌱 초보자",
+      "🏆 첫 승"
+    ],
+    "selectedTitle": "🌱 초보자",
+    "achievements": [
+      "first_win"
+    ],
+    "achievementRewardsClaimed": [
+      "first_win"
+    ],
+    "levelUps": 3,
+    "claimedLevelRewards": [
+      2,
+      3
+    ],
+    "inventory": [],
+    "equipped": {
+      "nameColor": "default",
+      "chatBubble": "default",
+      "profileBorder": "default",
+      "entranceEffect": "default",
+      "nameEffect": "default",
+      "profileBackground": "default",
+      "profileBadge": "default",
+      "chatEffect": "default",
+      "victoryEffect": "default",
+      "levelUpEffect": "default"
+    },
+    "boxes": {
+      "common": 0,
+      "rare": 0,
+      "epic": 0,
+      "legendary": 0
+    },
+    "boxPity": {
+      "common": 0,
+      "rare": 0,
+      "epic": 0,
+      "legendary": 0
+    },
+    "quests": {
+      "dailyKey": "2026-07-10",
+      "weeklyKey": "2026-07-06",
+      "dailyStats": {
+        "games": 3,
+        "wins": 1,
+        "words": 18,
+        "xp": 353
+      },
+      "weeklyStats": {
+        "games": 3,
+        "wins": 1,
+        "words": 18,
+        "xp": 353
+      },
+      "claimed": []
+    },
+    "friends": [],
+    "friendRequests": [],
+    "blockedPlayers": [],
+    "favoriteFriends": [],
+    "socialStatus": "online",
+    "notifications": [
+      {
+        "id": "4acd1c1c0a18",
+        "type": "daily",
+        "text": "DAY 1 출석 보상 획득",
+        "data": {
+          "day": 1
+        },
+        "time": 1783682138106,
+        "read": false
+      },
+      {
+        "id": "20512102a2db",
+        "type": "level_up",
+        "text": "레벨 2 달성",
+        "data": {
+          "level": 2
+        },
+        "time": 1783682371461,
+        "read": false
+      },
+      {
+        "id": "10beb369781e",
+        "type": "level_up",
+        "text": "레벨 3 달성",
+        "data": {
+          "level": 3
+        },
+        "time": 1783682423326,
+        "read": false
+      },
+      {
+        "id": "e95c422bf6e0",
+        "type": "achievement",
+        "text": "🏆 첫 승 달성",
+        "data": {
+          "achievementId": "first_win"
+        },
+        "time": 1783682423327,
+        "read": false
+      },
+      {
+        "id": "70c8469568f5",
+        "type": "level_up",
+        "text": "레벨 4 달성",
+        "data": {
+          "level": 4
+        },
+        "time": 1783682554604,
+        "read": false
+      }
+    ],
+    "dailyLogin": {
+      "lastClaimDate": "2026-07-10",
+      "streak": 1,
+      "totalDays": 1
+    },
+    "prestige": 0,
+    "collectionRewardsClaimed": [],
+    "favorites": {
+      "cosmeticId": "",
+      "title": "",
+      "badgeId": ""
+    },
+    "rankTier": "Unranked",
+    "rankDivision": 4,
+    "rankLP": 0,
+    "rankedWins": 0,
+    "rankedLosses": 0,
+    "placementMatchesPlayed": 0,
+    "placementWins": 0,
+    "rankedMatchHistory": [],
+    "seasonHighestTier": "Unranked",
+    "seasonHighestLP": 0
+  }
+}

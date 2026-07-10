@@ -9,6 +9,16 @@ const socket = io(window.location.origin, {
 
     let audioContext = null;
     let modalReturnFocus = null;
+    let authPending = false;
+    let submitPending = false;
+
+    function setAuthPending(pending) {
+      authPending = !!pending;
+      const loginButton = document.getElementById("loginButton");
+      const registerButton = document.getElementById("registerButton");
+      if (loginButton) loginButton.disabled = authPending;
+      if (registerButton) registerButton.disabled = authPending;
+    }
 
     function showModalElement(element) {
       if (!element) return;
@@ -371,6 +381,7 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     socket.on("connect", () => {
       mySocketId = socket.id;
       loadRoomList();
+      setAuthPending(false);
 
       const savedNickname = localStorage.getItem("wordChainNickname");
       const savedToken = localStorage.getItem("wordChainToken");
@@ -381,9 +392,11 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     });
 
     function register() {
+      if (authPending) return;
       const nickname = document.getElementById("authNickname").value.trim();
       const password = document.getElementById("authPassword").value;
 
+      setAuthPending(true);
       socket.emit("register", { nickname, password });
     }
 
@@ -394,9 +407,11 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     }
 
     function login() {
+      if (authPending) return;
       const nickname = document.getElementById("authNickname").value.trim();
       const password = document.getElementById("authPassword").value;
 
+      setAuthPending(true);
       socket.emit("login", { nickname, password });
     }
 
@@ -811,10 +826,15 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     }
 
     function submitWord() {
+      if (submitPending) return;
       const wordInput = document.getElementById("wordInput");
+      const submitButton = document.getElementById("submitButton");
+      if (!wordInput || wordInput.disabled || (submitButton && submitButton.disabled)) return;
       const word = wordInput.value.trim();
       if (!word) return;
 
+      submitPending = true;
+      if (submitButton) submitButton.disabled = true;
       socket.emit("submitWord", { roomCode: myRoomCode, word });
       wordInput.value = "";
       wordInput.focus();
@@ -904,8 +924,12 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     });
 
     socket.on("authSuccess", ({ nickname, token, profile }) => {
+      setAuthPending(false);
       dailyPopupShown = false;
       showLoggedIn(nickname, token, profile);
+      if (myRoomCode) {
+        socket.emit("joinRoom", { roomCode: myRoomCode, password: "", playerId });
+      }
       playSound("success");
       const displayName = profile && profile.displayName ? profile.displayName : nickname;
       showNotice(`✅ 로그인 성공!\n\n${displayName}`, 1800);
@@ -922,9 +946,22 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
 });
 
     socket.on("authError", (msg) => {
+      setAuthPending(false);
       if (msg !== "자동 로그인 실패") {
         showNotice(`❌ ${msg}`, 2500);
       }
+    });
+
+    socket.on("connect_error", () => {
+      setAuthPending(false);
+      submitPending = false;
+      const submitButton = document.getElementById("submitButton");
+      if (submitButton) submitButton.disabled = false;
+    });
+
+    socket.on("disconnect", () => {
+      setAuthPending(false);
+      submitPending = false;
     });
 
     socket.on("loggedOut", () => {
@@ -965,6 +1002,7 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     });
 
     socket.on("roomUpdate", (room) => {
+      submitPending = false;
       latestRoomData = room;
       document.getElementById("lobby").style.display = "none";
       document.getElementById("game").style.display = "block";
@@ -2114,6 +2152,11 @@ function closeRankEventOverlay() {
     });
 
     socket.on("errorMessage", (msg) => {
+      submitPending = false;
+      const submitButton = document.getElementById("submitButton");
+      if (submitButton && latestRoomData && latestRoomData.status === "playing") {
+        submitButton.disabled = latestRoomData.turnPlayerId !== playerId;
+      }
       const overlay = document.getElementById("boxOpeningOverlay");
       if (overlay && overlay.style.display === "flex" && !pendingBoxReward) closeBoxOpening();
       playSound("error");
