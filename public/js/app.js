@@ -4,10 +4,18 @@ const socket = io(window.location.origin, {
 
     const polishSettings = {
       sound: localStorage.getItem("wca_sound") !== "off",
+      sfx: localStorage.getItem("wca_sfx") !== "off" && localStorage.getItem("wca_sound") !== "off",
+      bgm: localStorage.getItem("wca_bgm") !== "off",
+      masterVolume: Math.max(0, Math.min(1, Number(localStorage.getItem("wca_master_volume") ?? 0.9))),
+      sfxVolume: Math.max(0, Math.min(1, Number(localStorage.getItem("wca_sfx_volume") ?? 0.95))),
+      bgmVolume: Math.max(0, Math.min(1, Number(localStorage.getItem("wca_bgm_volume") ?? 0.28))),
       animation: localStorage.getItem("wca_animation") !== "off"
     };
 
     let audioContext = null;
+    let audioUnlocked = false;
+    let bgmNodes = null;
+    let currentBgmMode = "";
     let modalReturnFocus = null;
     let authPending = false;
     let submitPending = false;
@@ -40,6 +48,7 @@ const socket = io(window.location.origin, {
     }
 
     function getAudioContext() {
+      if (window.WCA && WCA.Audio) return WCA.Audio.getContext();
       if (!audioContext) {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextClass) return null;
@@ -48,47 +57,395 @@ const socket = io(window.location.origin, {
       return audioContext;
     }
 
-    function tone(freq, duration = 0.06, type = "sine", volume = 0.035, delay = 0) {
-      if (!polishSettings.sound) return;
+    function unlockAudio() {
+      if (window.WCA && WCA.Audio) {
+        WCA.Audio.unlock();
+        return;
+      }
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      audioUnlocked = true;
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      updateBgmForContext();
+    }
 
+    window.addEventListener("pointerdown", unlockAudio, { once: true, passive: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
+
+    function connectWithFilter(ctx, destination, filterType = "lowpass", frequency = 4200) {
+      const filter = ctx.createBiquadFilter();
+      filter.type = filterType;
+      filter.frequency.value = frequency;
+      filter.Q.value = 0.7;
+      filter.connect(destination);
+      return filter;
+    }
+
+    function tone(freq, duration = 0.08, type = "sine", volume = 0.035, delay = 0, destination = null, detune = 0) {
+      if (!polishSettings.sfx && !destination) return null;
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) return null;
+        const output = destination || ctx.destination;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const filter = connectWithFilter(ctx, output, "lowpass", Math.max(900, Math.min(6200, freq * 4)));
+        const t = ctx.currentTime + Math.max(0, delay);
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, t);
+        osc.detune.setValueAtTime(detune, t);
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, volume * (destination ? 1 : polishSettings.sfxVolume)), t + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.03, duration));
+
+        osc.connect(gain);
+        gain.connect(filter);
+        osc.start(t);
+        osc.stop(t + duration + 0.04);
+        return osc;
+      } catch (err) { return null; }
+    }
+
+    function noiseBurst(duration = 0.06, volume = 0.025, delay = 0, highpass = 1200, destination = null) {
+      if (!polishSettings.sfx && !destination) return;
       try {
         const ctx = getAudioContext();
         if (!ctx) return;
-
-        const osc = ctx.createOscillator();
+        const length = Math.max(1, Math.floor(ctx.sampleRate * duration));
+        const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length);
+        const source = ctx.createBufferSource();
         const gain = ctx.createGain();
-
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
-        gain.gain.setValueAtTime(0.0001, ctx.currentTime + delay);
-        gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + delay + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + delay + duration);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + delay);
-        osc.stop(ctx.currentTime + delay + duration + 0.03);
+        const filter = ctx.createBiquadFilter();
+        const t = ctx.currentTime + delay;
+        filter.type = "highpass";
+        filter.frequency.value = highpass;
+        gain.gain.setValueAtTime(volume * (destination ? 1 : polishSettings.sfxVolume), t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+        source.buffer = buffer;
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(destination || ctx.destination);
+        source.start(t);
       } catch (err) {}
     }
 
-    function playSound(name) {
+    function chord(freqs, duration = 0.22, volume = 0.018, delay = 0, destination = null) {
+      freqs.forEach((freq, index) => tone(freq, duration, index === 0 ? "triangle" : "sine", volume, delay + index * 0.006, destination, index * 3));
+    }
+
+    function malletHit(delay = 0, accent = false, pitch = 1) {
+      if (!polishSettings.sfx) return;
       try {
-        if (name === "click") tone(520, 0.04, "square", 0.02);
-        else if (name === "open") { tone(520, 0.05); tone(760, 0.07, "sine", 0.035, 0.05); }
-        else if (name === "close") { tone(360, 0.05); tone(240, 0.07, "sine", 0.03, 0.05); }
-        else if (name === "success") { tone(650, 0.06); tone(900, 0.08, "sine", 0.04, 0.07); }
-        else if (name === "error") tone(180, 0.12, "sawtooth", 0.035);
-        else if (name === "buy") { tone(780, 0.06); tone(980, 0.08, "sine", 0.04, 0.07); }
-        else if (name === "achievement") { tone(880, 0.07); tone(1180, 0.10, "triangle", 0.04, 0.08); }
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        const t = ctx.currentTime + Math.max(0, delay);
+        const output = ctx.destination;
+
+        // Low, rounded "땅" body instead of a high beep/ding.
+        const body = ctx.createOscillator();
+        const bodyGain = ctx.createGain();
+        const bodyFilter = ctx.createBiquadFilter();
+        body.type = "triangle";
+        body.frequency.setValueAtTime(185 * pitch, t);
+        body.frequency.exponentialRampToValueAtTime(118 * pitch, t + 0.13);
+        bodyFilter.type = "lowpass";
+        bodyFilter.frequency.setValueAtTime(accent ? 1350 : 1050, t);
+        bodyGain.gain.setValueAtTime(0.0001, t);
+        bodyGain.gain.exponentialRampToValueAtTime((accent ? 0.085 : 0.062) * polishSettings.sfxVolume, t + 0.006);
+        bodyGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+        body.connect(bodyFilter);
+        bodyFilter.connect(bodyGain);
+        bodyGain.connect(output);
+        body.start(t);
+        body.stop(t + 0.28);
+
+        // Wooden attack gives a game-like impact without sounding like "삐/띵".
+        const click = ctx.createOscillator();
+        const clickGain = ctx.createGain();
+        click.type = "square";
+        click.frequency.setValueAtTime(92 * pitch, t);
+        clickGain.gain.setValueAtTime((accent ? 0.035 : 0.025) * polishSettings.sfxVolume, t);
+        clickGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
+        click.connect(clickGain);
+        clickGain.connect(output);
+        click.start(t);
+        click.stop(t + 0.045);
+
+        noiseBurst(0.028, accent ? 0.012 : 0.008, delay, 260, output);
       } catch (err) {}
+    }
+
+    function playCharacterWordSound(length, power = 0) {
+      if (window.WCA && WCA.Audio) return WCA.Audio.playWord(length, power);
+      if (!polishSettings.sfx) return;
+      const count = Math.max(1, Math.min(24, Number(length) || 1));
+
+      // Keep 1-4 letters clearly separated and deliberately slow.
+      // Longer words accelerate gradually, but never become a piercing beep burst.
+      const step = count <= 4 ? 0.17 : count <= 7 ? 0.135 : count <= 11 ? 0.10 : 0.072;
+      const groove = [1, 0.96, 1.04, 0.92, 1.08, 0.98];
+
+      for (let i = 0; i < count; i++) {
+        const accent = i === 0 || i === count - 1 || (count >= 8 && i % 4 === 0);
+        malletHit(i * step, accent, groove[i % groove.length]);
+      }
+
+      const tail = (count - 1) * step + 0.23;
+
+      // Long words get a low percussion fill, not a high-pitched "삐비비빅".
+      if (count >= 8) {
+        const fillCount = count >= 12 ? 6 : 4;
+        for (let j = 0; j < fillCount; j++) {
+          malletHit(tail + j * 0.065, j === fillCount - 1, 0.82 + j * 0.035);
+        }
+      }
+
+      // Subtle musical payoff matching the BGM, kept warm and low.
+      if (power === 1) {
+        chord([196, 247, 294], 0.24, 0.012, tail + 0.10);
+      } else if (power === 2) {
+        chord([174.61, 220, 261.63, 329.63], 0.30, 0.014, tail + 0.10);
+      } else if (power >= 3) {
+        chord([146.83, 196, 246.94, 293.66], 0.38, 0.017, tail + 0.08);
+        noiseBurst(0.11, 0.009, tail + 0.12, 500);
+      }
+    }
+
+    function playSound(name, payload) {
+      if (window.WCA && WCA.Audio) return WCA.Audio.playSound(name, payload);
+      try {
+        if (!polishSettings.sfx) return;
+        if (name === "click") { noiseBurst(0.025, 0.012, 0, 1900); tone(480, 0.035, "triangle", 0.012); }
+        else if (name === "open") { tone(440, 0.06, "triangle", 0.024); tone(660, 0.09, "sine", 0.028, 0.045); }
+        else if (name === "close") { tone(520, 0.05, "triangle", 0.02); tone(300, 0.08, "sine", 0.022, 0.045); }
+        else if (name === "success") { chord([659, 831, 988], 0.18, 0.025); noiseBurst(0.06, 0.012, 0.06, 2200); }
+        else if (name === "error") { noiseBurst(0.045, 0.016, 0, 300); tone(155, 0.12, "triangle", 0.03); }
+        else if (name === "buy") { tone(880, 0.05, "triangle", 0.025); tone(1175, 0.07, "sine", 0.03, 0.045); noiseBurst(0.08, 0.018, 0.075, 2500); }
+        else if (name === "achievement") { chord([784, 988, 1319], 0.24, 0.03); noiseBurst(0.12, 0.02, 0.08, 2200); }
+        else if (name === "correct") playCharacterWordSound(1, 0);
+        else if (name === "longGood") playCharacterWordSound(6, 1);
+        else if (name === "longGreat") playCharacterWordSound(9, 2);
+        else if (name === "longLegendary") playCharacterWordSound(13, 3);
+        else if (name === "turn") { tone(523, 0.05, "triangle", 0.022); tone(784, 0.08, "sine", 0.025, 0.04); }
+        else if (name === "matchFound") { chord([392, 523], 0.12, 0.025); chord([659, 784, 988], 0.2, 0.03, 0.11); }
+        else if (name === "warning") { tone(880, 0.055, "square", 0.022); noiseBurst(0.025, 0.01, 0, 1700); }
+        else if (name === "victory") { chord([523, 659, 784], 0.18, 0.03); chord([659, 831, 1047], 0.32, 0.035, 0.18); noiseBurst(0.18, 0.025, 0.2, 2000); }
+        else if (name === "defeat" || name === "fail") { chord([294, 247, 196], 0.28, 0.022); tone(147, 0.32, "sine", 0.018, 0.16); }
+        else if (name === "promotion") { chord([523, 659, 784], 0.2, 0.03); chord([659, 831, 1047, 1319], 0.35, 0.034, 0.2); noiseBurst(0.2, 0.024, 0.24, 1800); }
+        else if (name === "demotion") { tone(330, 0.11, "triangle", 0.026); tone(247, 0.15, "sine", 0.024, 0.09); tone(165, 0.2, "sine", 0.018, 0.2); }
+      } catch (err) {}
+    }
+
+    function stopBgm() {
+      if (window.WCA && WCA.Audio) return WCA.Audio.stopBgm();
+      if (!bgmNodes) return;
+      try {
+        (bgmNodes.timers || []).forEach(id => clearInterval(id));
+        bgmNodes.gain.gain.setTargetAtTime(0.0001, bgmNodes.ctx.currentTime, 0.12);
+        (bgmNodes.oscillators || []).forEach(osc => setTimeout(() => { try { osc.stop(); } catch (err) {} }, 220));
+      } catch (err) {}
+      bgmNodes = null;
+      currentBgmMode = "";
+    }
+
+    function scheduleBgmNote(ctx, bus, freq, start, duration, type = "triangle", volume = 0.018) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = connectWithFilter(ctx, bus, "lowpass", type === "square" ? 1800 : 3000);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, volume), start + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+      osc.connect(gain);
+      gain.connect(filter);
+      osc.start(start);
+      osc.stop(start + duration + 0.03);
+      if (bgmNodes) bgmNodes.oscillators.push(osc);
+    }
+
+    function scheduleKick(ctx, bus, start, volume = 0.045) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(120, start);
+      osc.frequency.exponentialRampToValueAtTime(48, start + 0.12);
+      gain.gain.setValueAtTime(volume, start);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.14);
+      osc.connect(gain);
+      gain.connect(bus);
+      osc.start(start);
+      osc.stop(start + 0.15);
+      if (bgmNodes) bgmNodes.oscillators.push(osc);
+    }
+
+    function scheduleSnare(ctx, bus, start, volume = 0.014) {
+      noiseBurst(0.08, volume, Math.max(0, start - ctx.currentTime), 900, bus);
+      scheduleBgmNote(ctx, bus, 180, start, 0.07, 'triangle', volume * 0.7);
+    }
+
+    function scheduleHat(ctx, bus, start, volume = 0.004) {
+      noiseBurst(0.025, volume, Math.max(0, start - ctx.currentTime), 4200, bus);
+    }
+
+    function startBgm(mode) {
+      if (window.WCA && WCA.Audio) return WCA.Audio.startBgm(mode);
+      if (!polishSettings.bgm || !audioUnlocked || !mode) return stopBgm();
+      if (currentBgmMode === mode && bgmNodes) return;
+      stopBgm();
+      const ctx = getAudioContext();
+      if (!ctx) return;
+
+      const master = ctx.createGain();
+      const compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.value = -20;
+      compressor.knee.value = 18;
+      compressor.ratio.value = 4;
+      master.gain.value = 0.0001;
+      master.connect(compressor);
+      compressor.connect(ctx.destination);
+      master.gain.setTargetAtTime(0.085 * polishSettings.bgmVolume, ctx.currentTime, 0.25);
+
+      const themes = {
+        lobby: {
+          beat: 0.29,
+          chords: [[261.63,329.63,392],[220,277.18,329.63],[174.61,220,261.63],[196,246.94,293.66]],
+          bass: [130.81,110,87.31,98],
+          lead: [659.25,0,783.99,659.25,587.33,0,523.25,587.33,659.25,0,880,783.99,659.25,587.33,523.25,0]
+        },
+        normal: {
+          beat: 0.22,
+          chords: [[220,261.63,329.63],[196,246.94,293.66],[174.61,220,261.63],[196,246.94,329.63]],
+          bass: [110,98,87.31,98],
+          lead: [440,523.25,0,659.25,587.33,523.25,698.46,0,659.25,523.25,440,523.25,587.33,659.25,523.25,0]
+        },
+        ranked: {
+          beat: 0.185,
+          chords: [[174.61,220,261.63],[164.81,207.65,246.94],[146.83,185,220],[155.56,196,233.08]],
+          bass: [87.31,82.41,73.42,77.78],
+          lead: [349.23,0,440,523.25,466.16,440,0,587.33,523.25,466.16,440,523.25,587.33,698.46,587.33,0]
+        }
+      };
+
+      const theme = themes[mode] || themes.lobby;
+      bgmNodes = { ctx, gain: master, oscillators: [], timers: [] };
+      currentBgmMode = mode;
+      let step = 0;
+
+      const scheduleStep = () => {
+        if (!bgmNodes || currentBgmMode !== mode) return;
+        const now = ctx.currentTime + 0.04;
+        const beat = theme.beat;
+        const barStep = step % 16;
+        const chordIndex = Math.floor(barStep / 4) % theme.chords.length;
+        const chordFreqs = theme.chords[chordIndex];
+
+        // Warm pad at the start of each phrase.
+        if (barStep % 4 === 0) {
+          chordFreqs.forEach((freq, i) => scheduleBgmNote(ctx, master, freq, now, beat * 3.85, i === 0 ? 'triangle' : 'sine', mode === 'lobby' ? 0.011 : 0.009));
+          scheduleBgmNote(ctx, master, theme.bass[chordIndex], now, beat * 1.65, 'sine', mode === 'ranked' ? 0.024 : 0.019);
+        }
+
+        // Bass groove instead of one sustained beep.
+        if (barStep % 2 === 0 && barStep % 4 !== 0) {
+          scheduleBgmNote(ctx, master, theme.bass[chordIndex] * 1.5, now, beat * 0.55, 'triangle', 0.012);
+        }
+
+        // Syncopated arpeggio gives the loop a song-like pulse.
+        const arp = chordFreqs[(barStep + chordIndex) % chordFreqs.length] * (barStep % 4 === 3 ? 2 : 1);
+        scheduleBgmNote(ctx, master, arp, now + beat * 0.08, beat * 0.48, 'triangle', mode === 'lobby' ? 0.009 : 0.011);
+
+        const lead = theme.lead[barStep];
+        if (lead) scheduleBgmNote(ctx, master, lead, now + beat * 0.12, beat * 0.72, 'sine', mode === 'ranked' ? 0.012 : 0.01);
+
+        // Lightweight drums: kick, snare and hats.
+        if (barStep % 4 === 0 || (mode === 'ranked' && barStep % 4 === 2)) scheduleKick(ctx, master, now, mode === 'lobby' ? 0.026 : 0.038);
+        if (barStep % 4 === 2) scheduleSnare(ctx, master, now, mode === 'lobby' ? 0.007 : 0.012);
+        if (mode !== 'lobby' || barStep % 2 === 1) scheduleHat(ctx, master, now + beat * 0.48, mode === 'ranked' ? 0.006 : 0.004);
+
+        step = (step + 1) % 16;
+      };
+
+      for (let i = 0; i < 4; i++) scheduleStep();
+      bgmNodes.timers.push(setInterval(scheduleStep, theme.beat * 1000));
+    }
+
+    function setBgmVolume(value) {
+      if (window.WCA && WCA.Audio) WCA.Audio.setBgmVolume(value);
+      polishSettings.bgmVolume = Math.max(0, Math.min(1, Number(value)));
+      localStorage.setItem("wca_bgm_volume", String(polishSettings.bgmVolume));
+      if (bgmNodes) bgmNodes.gain.gain.setTargetAtTime(0.018 * polishSettings.bgmVolume, bgmNodes.ctx.currentTime, 0.08);
+      refreshSettingsUI();
+    }
+
+    function setSfxVolume(value) {
+      if (window.WCA && WCA.Audio) WCA.Audio.setSfxVolume(value);
+      polishSettings.sfxVolume = Math.max(0, Math.min(1, Number(value)));
+      localStorage.setItem("wca_sfx_volume", String(polishSettings.sfxVolume));
+      refreshSettingsUI();
+      playSound("click");
+    }
+
+    function setMasterVolume(value) {
+      polishSettings.masterVolume = Math.max(0, Math.min(1, Number(value)));
+      localStorage.setItem("wca_master_volume", String(polishSettings.masterVolume));
+      if (window.WCA && WCA.Audio) WCA.Audio.setMasterVolume(polishSettings.masterVolume);
+      refreshSettingsUI();
+    }
+
+    function resetAudioSettings() {
+      polishSettings.sfx = true;
+      polishSettings.sound = true;
+      polishSettings.bgm = true;
+      polishSettings.masterVolume = 0.9;
+      polishSettings.bgmVolume = 0.28;
+      polishSettings.sfxVolume = 0.95;
+      localStorage.setItem("wca_sound", "on");
+      localStorage.setItem("wca_sfx", "on");
+      localStorage.setItem("wca_bgm", "on");
+      localStorage.setItem("wca_master_volume", "0.9");
+      localStorage.setItem("wca_bgm_volume", "0.28");
+      localStorage.setItem("wca_sfx_volume", "0.95");
+      if (window.WCA && WCA.Audio) WCA.Audio.syncSettings(polishSettings);
+      refreshSettingsUI();
+      updateBgmForContext();
+      playSound("success");
+    }
+
+    function updateBgmForContext() {
+      if (!currentUserNickname) return stopBgm();
+      if (latestRoomData && latestRoomData.status === "playing") {
+        startBgm(latestRoomData.mode === "ranked" ? "ranked" : "normal");
+      } else {
+        startBgm("lobby");
+      }
     }
 
     function refreshSettingsUI() {
       const sound = document.getElementById("soundSettingText");
+      const sfx = document.getElementById("sfxSettingText");
+      const bgm = document.getElementById("bgmSettingText");
       const animation = document.getElementById("animationSettingText");
+      const sfxVolume = document.getElementById("sfxVolume");
+      const bgmVolume = document.getElementById("bgmVolume");
+      const masterVolume = document.getElementById("masterVolume");
+      const sfxVolumeText = document.getElementById("sfxVolumeText");
+      const bgmVolumeText = document.getElementById("bgmVolumeText");
+      const masterVolumeText = document.getElementById("masterVolumeText");
 
-      if (sound) sound.textContent = polishSettings.sound ? "ON" : "OFF";
+      if (sound) sound.textContent = polishSettings.sfx ? "ON" : "OFF";
+      if (sfx) sfx.textContent = polishSettings.sfx ? "ON" : "OFF";
+      if (bgm) bgm.textContent = polishSettings.bgm ? "ON" : "OFF";
       if (animation) animation.textContent = polishSettings.animation ? "ON" : "OFF";
+      if (sfxVolume) sfxVolume.value = String(Math.round(polishSettings.sfxVolume * 100));
+      if (bgmVolume) bgmVolume.value = String(Math.round(polishSettings.bgmVolume * 100));
+      if (masterVolume) masterVolume.value = String(Math.round(polishSettings.masterVolume * 100));
+      if (sfxVolumeText) sfxVolumeText.textContent = `${Math.round(polishSettings.sfxVolume * 100)}%`;
+      if (bgmVolumeText) bgmVolumeText.textContent = `${Math.round(polishSettings.bgmVolume * 100)}%`;
+      if (masterVolumeText) masterVolumeText.textContent = `${Math.round(polishSettings.masterVolume * 100)}%`;
 
       if (document.body) {
         document.body.classList.toggle("polish-on", polishSettings.animation);
@@ -116,6 +473,38 @@ const socket = io(window.location.origin, {
       seasonHighestLP: 0,
       rankedMatchHistory: []
     };
+
+    const rankTierKo = {
+      Unranked: "배치 전",
+      Bronze: "브론즈",
+      Silver: "실버",
+      Gold: "골드",
+      Platinum: "플래티넘",
+      Diamond: "다이아몬드",
+      Emerald: "에메랄드",
+      Ruby: "루비",
+      Master: "마스터",
+      Grandmaster: "그랜드마스터",
+      Mythic: "신화"
+    };
+
+    function formatRankKo(tier, division) {
+      if (!tier || tier === "Unranked") return rankTierKo.Unranked;
+      return `${rankTierKo[tier] || tier} ${division || ""}`.trim();
+    }
+
+    function formatMs(ms) {
+      const value = Number(ms) || 0;
+      return value > 0 ? `${(value / 1000).toFixed(2)}초` : "-";
+    }
+
+    function formatPlayTime(seconds) {
+      const total = Math.max(0, Math.floor(Number(seconds) || 0));
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      if (h > 0) return `${h}시간 ${m}분`;
+      return `${m}분`;
+    }
 
     function renderCompetitiveData(data = rankedData) {
   rankedData = { ...rankedData, ...(data || {}) };
@@ -156,7 +545,7 @@ const socket = io(window.location.origin, {
   setWidth("competitivePlacementBar", `${pct}%`);
   setText("competitivePlacementText", placementText);
 
-  setText("competitiveTierName", tier === "Unranked" ? "Unranked" : `${tier} ${division}`);
+  setText("competitiveTierName", formatRankKo(tier, division));
   setText("competitiveTierEmblem", tierIcons[tier] || "❓");
   setText("competitiveMmr", tier === "Unranked" ? "—" : String(division));
   setText("competitiveLp", String(rankedData.rankLP || 0));
@@ -166,6 +555,32 @@ const socket = io(window.location.origin, {
   setText("competitiveStreak", placementText);
   setText("competitivePeak", rankedData.seasonHighestTier || "Unranked");
   setText("competitiveSeasonLp", String(rankedData.seasonHighestLP || 0));
+
+  const hero = document.querySelector(".competitive-hero");
+  if (hero) {
+    let ux = document.getElementById("competitiveV33Ux");
+    if (!ux) {
+      ux = document.createElement("div");
+      ux.id = "competitiveV33Ux";
+      ux.className = "competitive-v33-ux";
+      hero.appendChild(ux);
+    }
+    const lpPct = tier === "Unranked" ? pct : Math.max(0, Math.min(100, rankedData.rankLP || 0));
+    const recentForm = (rankedData.recentForm || []).length
+      ? rankedData.recentForm.map(form => `<span class="${form === "W" ? "win" : "loss"}">${form}</span>`).join("")
+      : `<em>기록 없음</em>`;
+    ux.innerHTML = `
+      <div class="v33-lp-label"><span>LP 진행도</span><b>${tier === "Unranked" ? placementText : `${rankedData.rankLP || 0} / 100 LP`}</b></div>
+      <div class="v33-lp-track"><div style="width:${lpPct}%"></div></div>
+      <div class="v33-ranked-mini">
+        <span>시즌 경기 <b>${rankedData.seasonGames || 0}</b></span>
+        <span>현재 연승 <b>${rankedData.currentWinStreak || 0}</b></span>
+        <span>최고 연승 <b>${rankedData.highestWinStreak || 0}</b></span>
+      </div>
+      <div class="v33-ranked-form">최근 폼 ${recentForm}</div>
+      <div class="v33-peak-badge">피크 ${formatRankKo(rankedData.seasonHighestTier, rankedData.rankDivision)} · ${rankedData.seasonHighestLP || 0} LP</div>
+    `;
+  }
 
   document.querySelectorAll(".competitive-tier-row").forEach(row => {
     row.classList.toggle("current", row.dataset.tier === tier.toLowerCase());
@@ -278,11 +693,12 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
         const division = tier === "Unranked" ? "" : ` ${p.rankDivision || ""}`;
         const lp = Number.isFinite(Number(p.rankLP)) ? Number(p.rankLP) : 0;
         return `
-        <div class="ranked-leaderboard-row">
+        <div class="ranked-leaderboard-row v33-ranked-row">
             <strong>#${i + 1}</strong>
             <span>${tierIcons[tier] || "📋"} ${escapeHtml(p.nickname || "Unknown")}</span>
-            <span>${tierName}${division}</span>
+            <span>${formatRankKo(tier, p.rankDivision)}</span>
             <b>${lp} LP</b>
+            <small>${p.rankedWins || 0}W ${p.rankedLosses || 0}L · ${p.rankedWinRate || 0}%</small>
         </div>`;
     }).join("");
 
@@ -312,9 +728,23 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     function toggleSetting(key) {
       polishSettings[key] = !polishSettings[key];
 
-      if (key === "sound") localStorage.setItem("wca_sound", polishSettings[key] ? "on" : "off");
+      if (key === "sound") {
+        polishSettings.sfx = polishSettings.sound;
+        localStorage.setItem("wca_sound", polishSettings[key] ? "on" : "off");
+        localStorage.setItem("wca_sfx", polishSettings.sfx ? "on" : "off");
+      }
+      if (key === "sfx") {
+        polishSettings.sound = polishSettings.sfx;
+        localStorage.setItem("wca_sound", polishSettings.sfx ? "on" : "off");
+        localStorage.setItem("wca_sfx", polishSettings.sfx ? "on" : "off");
+      }
+      if (key === "bgm") {
+        localStorage.setItem("wca_bgm", polishSettings.bgm ? "on" : "off");
+        updateBgmForContext();
+      }
       if (key === "animation") localStorage.setItem("wca_animation", polishSettings[key] ? "on" : "off");
 
+      if (window.WCA && WCA.Audio) WCA.Audio.syncSettings(polishSettings);
       refreshSettingsUI();
       playSound("click");
     }
@@ -367,10 +797,48 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     let lastPlayersMarkup = "";
     let lastUsedWordsMarkup = "";
     let latestRoomData = null;
+    let lastWordEventId = 0;
+    let lastCountdownBeepKey = "";
+    let lastMatchFeelKey = "";
     let pendingPartyInvite = null;
     let partyInviteInterval = null;
     let contextPlayer = null;
     let latestNotifications = [];
+    let pingTimer = null;
+
+    function setConnectionStatus(state, label) {
+      const pill = document.getElementById("connectionStatus");
+      const banner = document.getElementById("reconnectBanner");
+      if (pill) {
+        pill.textContent = label || state;
+        pill.className = `connection-pill ${state || "unknown"}`;
+      }
+      if (banner) {
+        const disconnected = state === "offline" || state === "reconnecting";
+        banner.textContent = state === "reconnecting" ? "연결 복구 중..." : "서버 연결이 끊어졌습니다. 자동으로 재연결합니다.";
+        banner.classList.toggle("show", disconnected);
+      }
+    }
+
+    function updatePingDisplay(ms) {
+      const el = document.getElementById("pingDisplay");
+      if (!el) return;
+      el.textContent = Number.isFinite(ms) ? `${Math.max(0, Math.round(ms))}ms` : "--ms";
+    }
+
+    function startPingMonitor() {
+      if (pingTimer) clearInterval(pingTimer);
+      const tick = () => {
+        if (!socket.connected) return updatePingDisplay(NaN);
+        const sentAt = Date.now();
+        socket.timeout(1200).emit("clientPing", sentAt, (err) => {
+          if (err) return updatePingDisplay(NaN);
+          updatePingDisplay(Date.now() - sentAt);
+        });
+      };
+      tick();
+      pingTimer = setInterval(tick, 5000);
+    }
 
     let playerId = sessionStorage.getItem("wordChainPlayerId");
     if (!playerId) {
@@ -380,6 +848,8 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
 
     socket.on("connect", () => {
       mySocketId = socket.id;
+      setConnectionStatus("online", "온라인");
+      startPingMonitor();
       loadRoomList();
       setAuthPending(false);
 
@@ -421,6 +891,7 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
       currentUserNickname = "";
       document.getElementById("authBox").style.display = "block";
       document.getElementById("lobby").style.display = "none";
+      stopBgm();
       socket.emit("logout");
     }
 
@@ -490,6 +961,7 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
 
       document.getElementById("authBox").style.display = "none";
       document.getElementById("lobby").style.display = "block";
+      updateBgmForContext();
     }
 
 
@@ -554,6 +1026,41 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
 
       showNotice("🎲 랜덤 매칭\n\n공개 대기방을 찾는 중...", 1800);
       runOnce("randomMatch",()=>socket.emit("randomMatch", { playerId }),1200);
+    }
+
+    function openAiBattle() {
+      if (!currentUserNickname) return showNotice("로그인 후 AI 대전을 이용할 수 있습니다.", 2200);
+      playSound("open");
+      showModalElement(document.getElementById("aiBattleModal"));
+    }
+
+    function closeAiBattle() {
+      playSound("close");
+      hideModalElement(document.getElementById("aiBattleModal"));
+    }
+
+    function startAiBattle() {
+      if (!currentUserNickname) return showNotice("로그인 후 AI 대전을 이용할 수 있습니다.", 2200);
+      const difficulty = document.getElementById("aiDifficulty")?.value || "normal";
+      const botCount = Number(document.getElementById("aiBotCount")?.value || 1);
+      const personality = document.getElementById("aiPersonality")?.value || "balanced";
+      const button = document.getElementById("aiBattleStartButton");
+      if (button) {
+        button.disabled = true;
+        button.textContent = "AI 경기 생성 중...";
+      }
+      runOnce("createAiBattle", () => socket.emit("createAiBattle", {
+        playerId,
+        difficulty,
+        botCount,
+        personality
+      }), 1500);
+      setTimeout(() => {
+        if (button) {
+          button.disabled = false;
+          button.textContent = "🤖 AI 대전 시작";
+        }
+      }, 1800);
     }
 
     function createRoom() {
@@ -699,6 +1206,40 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
         ? `Lv.${profile.nextLevelReward.level} / ${profile.nextLevelReward.coins || 0}코인${profile.nextLevelReward.title ? " / " + profile.nextLevelReward.title : ""}${profile.nextLevelReward.itemId ? " / 아이템" : ""}`
         : "모든 레벨 보상 획득!";
 
+      const recentMatches = (profile.recentMatches || []).slice(0, 20);
+      const recentHtml = recentMatches.length
+        ? recentMatches.map(match => `
+          <div class="v33-history-row ${match.result === "win" ? "win" : "loss"}">
+            <div><strong>${match.result === "win" ? "승리" : "패배"}</strong><small>${new Date(match.date).toLocaleDateString("ko-KR")} · ${match.ranked ? "랭크" : "일반"}</small></div>
+            <div>${escapeHtml((match.opponents || []).join(", ") || "상대 없음")}</div>
+            <b>${match.xpEarned || 0}XP · ${match.coinsEarned || 0}코인${match.ranked ? ` · ${match.lpChange > 0 ? "+" : ""}${match.lpChange || 0}LP` : ""}</b>
+          </div>
+        `).join("")
+        : `<div class="premium-empty">최근 경기 기록이 없습니다.</div>`;
+      const v33StatsHtml = `
+        <div class="v33-profile-section">
+          <h3>플레이어 진행도</h3>
+          <div class="v33-profile-grid">
+            <div>현재 랭크<strong>${formatRankKo(profile.rankTier, profile.rankDivision)} · ${profile.rankLP || 0} LP</strong></div>
+            <div>랭크 전적<strong>${profile.rankedWins || 0}승 ${profile.rankedLosses || 0}패 · ${profile.rankedWinRate || 0}%</strong></div>
+            <div>시즌 최고<strong>${formatRankKo(profile.seasonHighestTier, profile.rankDivision)} · ${profile.seasonHighestLP || 0} LP</strong></div>
+            <div>전체 전적<strong>${profile.totalMatches || profile.games || 0}전 ${profile.totalWins || profile.wins || 0}승 ${profile.totalLosses || profile.losses || 0}패</strong></div>
+            <div>최고 콤보<strong>${profile.highestCombo || 0} COMBO</strong></div>
+            <div>최장 단어<strong>${escapeHtml(profile.longestWord || "-")} ${profile.longestWordLength ? `(${profile.longestWordLength}글자)` : ""}</strong></div>
+            <div>평균 단어 길이<strong>${profile.averageWordLength || 0}글자</strong></div>
+            <div>최고 빠른 답<strong>${formatMs(profile.fastestValidWordMs)}</strong></div>
+            <div>평균 응답<strong>${formatMs(profile.averageTurnTimeMs)}</strong></div>
+            <div>총 플레이 시간<strong>${formatPlayTime(profile.totalPlayTimeSeconds)}</strong></div>
+            <div>MVP<strong>${profile.mvpCount || 0}회</strong></div>
+            <div>선호 시작/끝 글자<strong>${profile.favoriteStartingCharacter || "-"} / ${profile.favoriteEndingCharacter || "-"}</strong></div>
+          </div>
+        </div>
+        <div class="v33-profile-section">
+          <h3>최근 경기 기록</h3>
+          <div class="v33-history-list">${recentHtml}</div>
+        </div>
+      `;
+
       content.innerHTML = `
         <div class="growth-profile-hero profile-showcase">
           <div class="profile-showcase-avatar">${profile.style&&profile.style.profileBadgeIcon?profile.style.profileBadgeIcon:"⚔"}</div>
@@ -736,6 +1277,8 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
         <div class="profile-row"><span>🏆 승리 효과</span><span>${profile.currentCosmetics?.victoryEffect?.name||"기본"}</span></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button onclick="openCollection('${profile.nickname}')">🏛 컬렉션 보기</button><button onclick="openAchievementsFor('${profile.nickname}')">🏅 업적 보기</button>${profile.nickname===currentUserNickname&&profile.canPrestige?`<button class="prestige-button" onclick="requestPrestige()">♛ PRESTIGE</button>`:""}</div>
       `;
+
+      content.insertAdjacentHTML("beforeend", v33StatsHtml);
 
       modal.classList.remove("profile-border-gold");
       if (profile.style && profile.style.profileBorder === "gold") {
@@ -784,6 +1327,19 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
         ? order.map((item, index) => `<div>${index + 1}. ${item.nickname} - ${item.reason}</div>`).join("")
         : "<div>탈락자 없음</div>";
 
+      const mvp = result.mvpSummary || null;
+      const mvpHtml = mvp ? `
+        <div class="v33-mvp-card">
+          <div class="v33-mvp-title">🏆 MATCH MVP</div>
+          <div class="v33-mvp-name">${escapeHtml(mvp.mvp?.nickname || "-")} <small>${Math.round(mvp.mvp?.score || 0)} pts</small></div>
+          <div class="v33-mvp-grid">
+            <div>최장 단어<strong>${escapeHtml(mvp.longestWord?.word || "-")} ${mvp.longestWord?.length ? `(${mvp.longestWord.length})` : ""}</strong><small>${escapeHtml(mvp.longestWord?.nickname || "")}</small></div>
+            <div>최고 콤보<strong>${mvp.highestCombo?.combo || 0} COMBO</strong><small>${escapeHtml(mvp.highestCombo?.nickname || "")}</small></div>
+            <div>가장 빠른 답<strong>${formatMs(mvp.fastestAnswer?.ms)}</strong><small>${escapeHtml(mvp.fastestAnswer?.nickname || "")}</small></div>
+          </div>
+        </div>
+      ` : "";
+
       resultBox.innerHTML = `
         <div class="result-summary-card">
           <div>⏱ 경기 시간: ${formatDuration(result.durationSec || 0)}</div>
@@ -794,6 +1350,7 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
         <div class="result-summary-card">💀 탈락 순서</div>
         ${orderHtml}
       `;
+      if (mvpHtml) resultBox.insertAdjacentHTML("afterbegin", mvpHtml);
     }
 
 
@@ -823,6 +1380,77 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
           noticeBox.textContent = "";
         }
       }, duration);
+    }
+
+    function showWordImpact(event) {
+      if (!event || event.id === lastWordEventId) return;
+      lastWordEventId = event.id;
+
+      const overlay = document.getElementById("wordImpactOverlay");
+      if (!overlay) return;
+
+      const label = event.label || "OK";
+      const comboText = event.combo >= 2 ? `<div class="word-impact-combo">${event.combo} COMBO</div>` : "";
+      const perfectText = event.perfect ? `<div class="word-impact-perfect">PERFECT</div>` : "";
+      const rewardText = event.xp || event.coins ? `<div class="word-impact-reward">+${event.xp} XP · +${event.coins} 코인</div>` : "";
+
+      overlay.className = `word-impact-overlay show power-${event.power || 0}`;
+      overlay.innerHTML = `
+        <div class="word-impact-word">${escapeHtml(event.word || "")}</div>
+        <div class="word-impact-meta">${label} · ${event.length || 0}글자</div>
+        ${comboText}${perfectText}${rewardText}
+      `;
+
+      playCharacterWordSound(event.length || 1, event.power || 0);
+
+      setTimeout(() => {
+        if (lastWordEventId === event.id) overlay.classList.remove("show");
+      }, polishSettings.animation ? 1150 : 550);
+    }
+
+    function showFinalCountdown(room) {
+      const box = document.getElementById("finalCountdownBurst");
+      if (!box || !room || room.status !== "playing") return;
+      const left = Number(room.timeLeft);
+      if (!Number.isFinite(left) || left < 1 || left > 5) {
+        box.classList.remove("show");
+        if (window.WCA && WCA.Audio) WCA.Audio.setBgmTension(99);
+        return;
+      }
+      if (window.WCA && WCA.Audio) WCA.Audio.setBgmTension(left);
+      const key = `${room.turnPlayerId || ""}:${(room.usedWords || []).length}:${left}`;
+      if (key === lastCountdownBeepKey) return;
+      lastCountdownBeepKey = key;
+      box.textContent = String(left);
+      box.classList.remove("show");
+      void box.offsetWidth;
+      box.classList.add("show");
+      playSound("warning");
+    }
+
+    function showMatchFeelOverlay(room) {
+      if (!room || room.status !== "gameover") return;
+      const rewards = room.matchResult && room.matchResult.rewards ? room.matchResult.rewards : [];
+      const mine = rewards.find(item => item.nickname === currentUserNickname);
+      const key = `${myRoomCode}:${room.matchEndedAt || room.winnerText || ""}:${mine ? mine.result : "spectator"}`;
+      if (key === lastMatchFeelKey) return;
+      lastMatchFeelKey = key;
+
+      const overlay = document.getElementById("matchFeelOverlay");
+      if (!overlay) return;
+
+      const won = mine && mine.result === "win";
+      const ranked = mine && mine.ranked;
+      const lpText = ranked ? `<div class="match-feel-lp">${ranked.lpChange >= 0 ? "+" : ""}${ranked.lpChange || 0} LP · ${ranked.newTier || ""}</div>` : "";
+      overlay.className = `match-feel-overlay show ${won ? "victory" : "defeat"}`;
+      overlay.innerHTML = `
+        <div class="match-feel-title">${won ? "VICTORY" : "DEFEAT"}</div>
+        <div class="match-feel-sub">${escapeHtml(room.winnerText || "")}</div>
+        ${lpText}
+      `;
+
+      playSound(won ? "victory" : "defeat");
+      setTimeout(() => overlay.classList.remove("show"), polishSettings.animation ? 2400 : 1000);
     }
 
     function submitWord() {
@@ -953,6 +1581,7 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     });
 
     socket.on("connect_error", () => {
+      setConnectionStatus("offline", "연결 오류");
       setAuthPending(false);
       submitPending = false;
       const submitButton = document.getElementById("submitButton");
@@ -960,6 +1589,8 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     });
 
     socket.on("disconnect", () => {
+      setConnectionStatus("reconnecting", "재연결 중");
+      updatePingDisplay(NaN);
       setAuthPending(false);
       submitPending = false;
     });
@@ -976,6 +1607,10 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     socket.on("roomCreated", (roomCode) => {
       myRoomCode = roomCode;
       isHost = true;
+      lastWordEventId = 0;
+      lastCountdownBeepKey = "";
+      lastMatchFeelKey = "";
+      playSound("matchFound");
 
       document.getElementById("authBox").style.display = "none";
       document.getElementById("lobby").style.display = "none";
@@ -983,9 +1618,33 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
       document.getElementById("roomCode").textContent = roomCode;
     });
 
+    socket.on("aiBattleCreated", ({ difficulty, botCount, personality }) => {
+      closeAiBattle();
+      const difficultyKo = {
+        beginner: "입문",
+        easy: "쉬움",
+        normal: "보통",
+        hard: "어려움",
+        expert: "전문가",
+        mythic: "신화"
+      };
+      const personalityKo = {
+        balanced: "균형형",
+        aggressive: "공격형",
+        safe: "안정형",
+        longword: "긴 단어형",
+        gambler: "도박형"
+      };
+      showNotice(`🤖 AI 대전\n\n${difficultyKo[difficulty] || difficulty} · ${botCount}명 · ${personalityKo[personality] || personality}`, 2400);
+    });
+
     socket.on("joinedRoom", (roomCode) => {
       myRoomCode = roomCode;
       isHost = false;
+      lastWordEventId = 0;
+      lastCountdownBeepKey = "";
+      lastMatchFeelKey = "";
+      playSound("matchFound");
 
       document.getElementById("lobby").style.display = "none";
       document.getElementById("game").style.display = "block";
@@ -1004,6 +1663,12 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     socket.on("roomUpdate", (room) => {
       submitPending = false;
       latestRoomData = room;
+      updateBgmForContext();
+      showWordImpact(room.lastWordEvent);
+      showFinalCountdown(room);
+      if (room.status !== "gameover") {
+        lastMatchFeelKey = "";
+      }
       document.getElementById("lobby").style.display = "none";
       document.getElementById("game").style.display = "block";
 
@@ -1161,6 +1826,7 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
         winnerBox.style.display = "block";
         winnerName.textContent = room.winnerText || "승자 없음";
         renderMatchResult(room);
+        showMatchFeelOverlay(room);
         document.getElementById("resultBox").style.display = "block";
 
         const myReward = room.matchResult && room.matchResult.rewards
@@ -1326,6 +1992,7 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
 
 
     let latestQuestData = null;
+    let latestDailyMissionData = null;
     let currentQuestCategory = "starter";
     let latestFriendsData = null;
     let latestDailyLoginData = null;
@@ -1419,6 +2086,25 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     function openQuests() {
       showModalElement(document.getElementById("questModal"));
       socket.emit("getQuests");
+      socket.emit("getDailyMissions");
+    }
+
+    function renderDailyMissions() {
+      const box = document.getElementById("dailyMissionList");
+      if (!box) return;
+      const missions = latestDailyMissionData && latestDailyMissionData.missions ? latestDailyMissionData.missions : [];
+      box.innerHTML = missions.length ? missions.map(mission => `
+        <div class="quest-card v33-daily-card ${mission.completed ? "completed" : ""} ${mission.claimed ? "claimed" : ""}">
+          <div class="quest-title">${mission.completed ? "✅ " : ""}${escapeHtml(mission.name)}</div>
+          <div style="font-size:12px;opacity:.78;">${escapeHtml(mission.desc)}</div>
+          <div class="quest-progress"><div style="width:${mission.percent || 0}%"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;"><span>진행도</span><strong>${mission.progress || mission.value || 0} / ${mission.target}</strong></div>
+          <div class="quest-reward">${rewardText(mission.reward || {})}</div>
+          <button ${!mission.completed || mission.claimed ? "disabled" : ""} onclick="claimDailyMission('${mission.id}')">
+            ${mission.claimed ? "수령 완료" : mission.completed ? "보상 받기" : "진행 중"}
+          </button>
+        </div>
+      `).join("") : `<div class="premium-empty">오늘의 미션을 불러오는 중입니다.</div>`;
     }
 
     function renderQuests(category = currentQuestCategory) {
@@ -1444,6 +2130,11 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     function claimQuest(questId) {
       if (!questId) return;
       socket.emit("claimQuest", { questId });
+    }
+
+    function claimDailyMission(missionId) {
+      if (!missionId) return;
+      socket.emit("claimDailyMission", { missionId });
     }
 
     function openFriends() {
@@ -2023,7 +2714,7 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
   document.getElementById("rankEventText").textContent = text || "";
 
   overlay.style.display = "flex";
-  playSound(type === "demotion" ? "fail" : "success");
+  playSound(type === "demotion" ? "demotion" : "promotion");
 }
 
 function closeRankEventOverlay() {
@@ -2068,6 +2759,17 @@ function closeRankEventOverlay() {
       renderQuests(currentQuestCategory);
     });
 
+    socket.on("dailyMissionData", (data) => {
+      latestDailyMissionData = data;
+      renderDailyMissions();
+    });
+
+    socket.on("dailyMissionClaimed", ({ rewards, achievements }) => {
+      playSound("achievement");
+      showNotice(`오늘의 미션 완료!\n\n${(rewards || []).join(" · ")}`, 2600);
+      if (achievements && achievements.length) showAchievementPopup(achievements);
+    });
+
     socket.on("collectionData", renderCollection);
     socket.on("collectionRewardClaimed", ({percent,rewards}) => {
       playSound("achievement");
@@ -2095,7 +2797,7 @@ function closeRankEventOverlay() {
     socket.on("whisperMessage", (message) => {
       showWhisperPopup(message);
     });
-    socket.on("roomInvite", invite => { playSound("achievement");showPartyInvite(invite); });
+    socket.on("roomInvite", invite => { playSound("matchFound");showPartyInvite(invite); });
     socket.on("socialNotification", notification => {
       latestNotifications.unshift(notification);
       const count=document.getElementById("notificationCount");

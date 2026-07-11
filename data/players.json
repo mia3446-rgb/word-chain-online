@@ -3,18 +3,18 @@
     "nickname": "kimmo125",
     "passwordHash": "bfa70c35cf862cb329ec04c44e046730d1b1f6812f6f45bf1b93714dfdb952ef",
     "salt": "d5e51d2b5e2aec92fecf0b7be8b712e9",
-    "sessionToken": "15c5edb26581553fc61134ebc2713544a98b172656c8cb53",
+    "sessionToken": "7543cc7baaa9b0ddf94952488f406a8023deb698b5cca472",
     "createdAt": 1783682035453,
-    "level": 6,
-    "xp": 100,
-    "totalXp": 1100,
-    "coins": 1578,
-    "wins": 4,
+    "level": 7,
+    "xp": 12,
+    "totalXp": 1362,
+    "coins": 2246,
+    "wins": 5,
     "losses": 1,
-    "games": 5,
-    "currentWinStreak": 3,
-    "bestWinStreak": 3,
-    "wordsUsed": 20,
+    "games": 6,
+    "currentWinStreak": 4,
+    "bestWinStreak": 4,
+    "wordsUsed": 34,
     "titles": [
       "🌱 초보자",
       "🏆 첫 승",
@@ -30,13 +30,16 @@
       "first_win",
       "streak_3"
     ],
-    "levelUps": 5,
+    "levelUps": 6,
     "claimedLevelRewards": [
       2,
       3,
-      5
+      5,
+      7
     ],
-    "inventory": [],
+    "inventory": [
+      "name_green"
+    ],
     "equipped": {
       "nameColor": "default",
       "chatBubble": "default",
@@ -62,19 +65,19 @@
       "legendary": 0
     },
     "quests": {
-      "dailyKey": "2026-07-10",
+      "dailyKey": "2026-07-11",
       "weeklyKey": "2026-07-06",
       "dailyStats": {
-        "games": 5,
-        "wins": 4,
-        "words": 20,
-        "xp": 750
+        "games": 0,
+        "wins": 0,
+        "words": 0,
+        "xp": 0
       },
       "weeklyStats": {
-        "games": 5,
-        "wins": 4,
-        "words": 20,
-        "xp": 750
+        "games": 6,
+        "wins": 5,
+        "words": 34,
+        "xp": 1012
       },
       "claimed": []
     },
@@ -143,6 +146,16 @@
         },
         "time": 1783683024105,
         "read": false
+      },
+      {
+        "id": "f4c6e6d32143",
+        "type": "level_up",
+        "text": "레벨 7 달성",
+        "data": {
+          "level": 7
+        },
+        "time": 1783684285865,
+        "read": false
       }
     ],
     "dailyLogin": {
@@ -166,41 +179,138 @@
     "placementWins": 0,
     "rankedMatchHistory": [],
     "seasonHighestTier": "Unranked",
-    "seasonHighestLP": 0
+    "seasonHighestLP": 0,
+    "totalMatches": 0,
+    "totalWins": 0,
+    "totalLosses": 0,
+    "totalWordsPlayed": 0,
+    "totalCharactersPlayed": 0,
+    "longestWord": "",
+    "longestWordLength": 0,
+    "fastestValidWordMs": 0,
+    "totalTurnTimeMs": 0,
+    "timedValidWordCount": 0,
+    "averageTurnTimeMs": 0,
+    "averageWordLength": 0,
+    "highestCombo": 0,
+    "perfectWordCount": 0,
+    "longWordCount": 0,
+    "legendaryWordCount": 0,
+    "mvpCount": 0,
+    "totalPlayTimeSeconds": 0,
+    "favoriteStartingCharacter": "",
+    "favoriteEndingCharacter": "",
+    "startingCharacterCounts": {},
+    "endingCharacterCounts": {},
+    "recentMatches": [],
+    "dailyMissions": {
+      "dateKey": "2026-07-11",
+      "missions": [
+        {
+          "id": "daily_match_3",
+          "name": "오늘의 아레나",
+          "desc": "오늘 경기 3회 플레이",
+          "type": "matches",
+          "target": 3,
+          "progress": 0,
+          "claimed": false,
+          "reward": {
+            "coins": 180,
+            "xp": 80
+          },
+          "dateKey": "2026-07-11"
+        },
+        {
+          "id": "daily_words_20",
+          "name": "단어 러시",
+          "desc": "오늘 유효 단어 20개 제출",
+          "type": "words",
+          "target": 20,
+          "progress": 0,
+          "claimed": false,
+          "reward": {
+            "coins": 220,
+            "xp": 120
+          },
+          "dateKey": "2026-07-11"
+        },
+        {
+          "id": "daily_combo_3",
+          "name": "콤보 감각",
+          "desc": "한 경기에서 3콤보 달성",
+          "type": "combo",
+          "target": 3,
+          "progress": 0,
+          "claimed": false,
+          "reward": {
+            "box": "common",
+            "amount": 1
+          },
+          "dateKey": "2026-07-11"
+        }
+      ]
+    }
   },
   "테스트": {
     "nickname": "테스트",
     "passwordHash": "3ae9c35365115f00d18886b7050a57eea5446d92c24756bcb175cbc9119fc50b",
     "salt": "48b5498730a5eebb8673fdb2a1ec6af6",
-    "sessionToken": "79f692fc103c3fcc65630e963a0c30f32983288fa36771bd",
+    "sessionToken": "679bd77762e5e8a22953a682de618f90760c0d9560b3e8e9",
     "createdAt": 1783682137057,
-    "level": 4,
-    "xp": 3,
-    "totalXp": 453,
-    "coins": 714,
-    "wins": 1,
-    "losses": 2,
-    "games": 3,
+    "level": 12,
+    "xp": 467,
+    "totalXp": 4317,
+    "coins": 5880,
+    "wins": 5,
+    "losses": 9,
+    "games": 14,
     "currentWinStreak": 0,
-    "bestWinStreak": 1,
-    "wordsUsed": 18,
+    "bestWinStreak": 2,
+    "wordsUsed": 103,
     "titles": [
       "🌱 초보자",
-      "🏆 첫 승"
+      "🏆 첫 승",
+      "🌟 성장하는 자",
+      "첫 발걸음",
+      "첫 승리자",
+      "🎮 꾸준한 도전자",
+      "콤보 러너",
+      "콤보 마스터",
+      "⚔ 아레나 입문자",
+      "📚 단어왕",
+      "📚 단어 수집가"
     ],
     "selectedTitle": "🌱 초보자",
     "achievements": [
-      "first_win"
+      "first_win",
+      "v33_first_match",
+      "v33_first_win",
+      "games_10",
+      "v33_combo_5",
+      "v33_combo_10",
+      "words_100"
     ],
     "achievementRewardsClaimed": [
-      "first_win"
+      "first_win",
+      "v33_first_match",
+      "v33_first_win",
+      "games_10",
+      "v33_combo_5",
+      "v33_combo_10",
+      "words_100"
     ],
-    "levelUps": 3,
+    "levelUps": 11,
     "claimedLevelRewards": [
       2,
-      3
+      3,
+      5,
+      7,
+      10
     ],
-    "inventory": [],
+    "inventory": [
+      "name_green",
+      "bubble_yellow"
+    ],
     "equipped": {
       "nameColor": "default",
       "chatBubble": "default",
@@ -226,19 +336,19 @@
       "legendary": 0
     },
     "quests": {
-      "dailyKey": "2026-07-10",
+      "dailyKey": "2026-07-11",
       "weeklyKey": "2026-07-06",
       "dailyStats": {
-        "games": 3,
-        "wins": 1,
-        "words": 18,
-        "xp": 353
+        "games": 7,
+        "wins": 2,
+        "words": 31,
+        "xp": 798
       },
       "weeklyStats": {
-        "games": 3,
-        "wins": 1,
-        "words": 18,
-        "xp": 353
+        "games": 14,
+        "wins": 5,
+        "words": 103,
+        "xp": 1847
       },
       "claimed": []
     },
@@ -297,12 +407,102 @@
         },
         "time": 1783682554604,
         "read": false
+      },
+      {
+        "id": "fb8553d44c8e",
+        "type": "level_up",
+        "text": "레벨 5 달성",
+        "data": {
+          "level": 5
+        },
+        "time": 1783685495619,
+        "read": false
+      },
+      {
+        "id": "4b7dbcfb741e",
+        "type": "level_up",
+        "text": "레벨 6 달성",
+        "data": {
+          "level": 6
+        },
+        "time": 1783685891238,
+        "read": false
+      },
+      {
+        "id": "d2f592d0d479",
+        "type": "daily",
+        "text": "DAY 2 출석 보상 획득",
+        "data": {
+          "day": 2
+        },
+        "time": 1783729755480,
+        "read": false
+      },
+      {
+        "id": "4f75560c5ffb",
+        "type": "level_up",
+        "text": "레벨 7 달성",
+        "data": {
+          "level": 7
+        },
+        "time": 1783735546487,
+        "read": false
+      },
+      {
+        "id": "a37669775811",
+        "type": "level_up",
+        "text": "레벨 11 달성",
+        "data": {
+          "level": 11
+        },
+        "time": 1783762791953,
+        "read": false
+      },
+      {
+        "id": "f60d7f2ba6cf",
+        "type": "achievement",
+        "text": "🎮 게임 10판 달성",
+        "data": {
+          "achievementId": "games_10"
+        },
+        "time": 1783762791955,
+        "read": false
+      },
+      {
+        "id": "f9caa1e3d1a9",
+        "type": "achievement",
+        "text": "5 COMBO 달성",
+        "data": {
+          "achievementId": "v33_combo_5"
+        },
+        "time": 1783762791956,
+        "read": false
+      },
+      {
+        "id": "0da3af75451e",
+        "type": "achievement",
+        "text": "10 COMBO 달성",
+        "data": {
+          "achievementId": "v33_combo_10"
+        },
+        "time": 1783762791956,
+        "read": false
+      },
+      {
+        "id": "83e003e1ac8a",
+        "type": "level_up",
+        "text": "레벨 12 달성",
+        "data": {
+          "level": 12
+        },
+        "time": 1783764707142,
+        "read": false
       }
     ],
     "dailyLogin": {
-      "lastClaimDate": "2026-07-10",
-      "streak": 1,
-      "totalDays": 1
+      "lastClaimDate": "2026-07-11",
+      "streak": 2,
+      "totalDays": 2
     },
     "prestige": 0,
     "collectionRewardsClaimed": [],
@@ -320,6 +520,190 @@
     "placementWins": 0,
     "rankedMatchHistory": [],
     "seasonHighestTier": "Unranked",
-    "seasonHighestLP": 0
+    "seasonHighestLP": 0,
+    "totalMatches": 5,
+    "totalWins": 1,
+    "totalLosses": 4,
+    "totalWordsPlayed": 23,
+    "totalCharactersPlayed": 80,
+    "longestWord": "모가미요시아키",
+    "longestWordLength": 7,
+    "fastestValidWordMs": 1715,
+    "totalTurnTimeMs": 92727,
+    "timedValidWordCount": 23,
+    "averageTurnTimeMs": 4032,
+    "averageWordLength": 3.48,
+    "highestCombo": 11,
+    "perfectWordCount": 4,
+    "longWordCount": 1,
+    "legendaryWordCount": 0,
+    "mvpCount": 5,
+    "totalPlayTimeSeconds": 221,
+    "favoriteStartingCharacter": "짜",
+    "favoriteEndingCharacter": "값",
+    "startingCharacterCounts": {
+      "라": 1,
+      "문": 1,
+      "모": 1,
+      "몬": 1,
+      "계": 1,
+      "낙": 1,
+      "곽": 1,
+      "균": 1,
+      "겁": 1,
+      "다": 1,
+      "사": 1,
+      "성": 1,
+      "욤": 1,
+      "킷": 2,
+      "짜": 2,
+      "급": 1,
+      "자": 1,
+      "슭": 1,
+      "븨": 1,
+      "업": 1,
+      "껏": 1
+    },
+    "endingCharacterCounts": {
+      "쉬": 1,
+      "씨": 1,
+      "키": 1,
+      "나": 1,
+      "주": 1,
+      "자": 1,
+      "생": 2,
+      "히": 1,
+      "택": 1,
+      "승": 1,
+      "대": 1,
+      "통": 1,
+      "값": 2,
+      "이": 2,
+      "제": 1,
+      "해": 1,
+      "가": 1,
+      "곰": 1,
+      "피": 1,
+      "기": 1
+    },
+    "recentMatches": [
+      {
+        "date": "2026-07-11T09:39:51.951Z",
+        "mode": "normal",
+        "result": "win",
+        "ranked": false,
+        "opponents": [],
+        "durationSeconds": 107,
+        "wordsPlayed": 11,
+        "longestWord": "모가미요시아키",
+        "highestCombo": 11,
+        "xpEarned": 197,
+        "coinsEarned": 114,
+        "lpChange": 0
+      },
+      {
+        "date": "2026-07-11T10:09:34.071Z",
+        "mode": "normal",
+        "result": "loss",
+        "ranked": false,
+        "opponents": [],
+        "durationSeconds": 40,
+        "wordsPlayed": 4,
+        "longestWord": "짜갈뱅이",
+        "highestCombo": 3,
+        "xpEarned": 95,
+        "coinsEarned": 50,
+        "lpChange": 0
+      },
+      {
+        "date": "2026-07-11T10:11:47.141Z",
+        "mode": "normal",
+        "result": "loss",
+        "ranked": false,
+        "opponents": [],
+        "durationSeconds": 25,
+        "wordsPlayed": 1,
+        "longestWord": "급가고립제",
+        "highestCombo": 1,
+        "xpEarned": 85,
+        "coinsEarned": 45,
+        "lpChange": 0
+      },
+      {
+        "date": "2026-07-11T10:15:30.359Z",
+        "mode": "normal",
+        "result": "loss",
+        "ranked": false,
+        "opponents": [],
+        "durationSeconds": 35,
+        "wordsPlayed": 5,
+        "longestWord": "자가가해",
+        "highestCombo": 5,
+        "xpEarned": 100,
+        "coinsEarned": 52,
+        "lpChange": 0
+      },
+      {
+        "date": "2026-07-11T10:16:43.547Z",
+        "mode": "normal",
+        "result": "loss",
+        "ranked": false,
+        "opponents": [],
+        "durationSeconds": 14,
+        "wordsPlayed": 2,
+        "longestWord": "업감연기",
+        "highestCombo": 2,
+        "xpEarned": 90,
+        "coinsEarned": 47,
+        "lpChange": 0
+      }
+    ],
+    "dailyMissions": {
+      "dateKey": "2026-07-11",
+      "missions": [
+        {
+          "id": "daily_match_3",
+          "name": "오늘의 아레나",
+          "desc": "오늘 경기 3회 플레이",
+          "type": "matches",
+          "target": 3,
+          "progress": 3,
+          "claimed": false,
+          "reward": {
+            "coins": 180,
+            "xp": 80
+          },
+          "dateKey": "2026-07-11"
+        },
+        {
+          "id": "daily_words_20",
+          "name": "단어 러시",
+          "desc": "오늘 유효 단어 20개 제출",
+          "type": "words",
+          "target": 20,
+          "progress": 20,
+          "claimed": false,
+          "reward": {
+            "coins": 220,
+            "xp": 120
+          },
+          "dateKey": "2026-07-11"
+        },
+        {
+          "id": "daily_combo_3",
+          "name": "콤보 감각",
+          "desc": "한 경기에서 3콤보 달성",
+          "type": "combo",
+          "target": 3,
+          "progress": 3,
+          "claimed": false,
+          "reward": {
+            "box": "common",
+            "amount": 1
+          },
+          "dateKey": "2026-07-11"
+        }
+      ]
+    }
   }
 }

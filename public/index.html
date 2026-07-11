@@ -9,6 +9,7 @@
 </head>
 
 <body class="polish-on v20a-ui v29a-ui">
+  <div id="reconnectBanner" class="reconnect-banner">서버 연결을 복구하는 중입니다...</div>
   <div class="card">
     <h1 class="v20-logo">⚔ WORD CHAIN ARENA</h1>
     <div class="subtitle">🔥 V3.0 Open Beta · Season Beta</div>
@@ -55,6 +56,8 @@
             <div style="font-weight:900; opacity:0.82;">V3.0 Open Beta · Online Multiplayer · Competitive Season</div>
           </div>
           <div class="v23-season">
+            <span id="connectionStatus" class="connection-pill online">온라인</span>
+            <span id="pingDisplay" class="connection-pill ping">--ms</span>
             <span class="v23-pill v29-pill-ranked">🏆 Ranked S1</span>
             <span class="v23-pill">V3.0 OPEN BETA</span>
             <span class="v23-pill">Competitive Season</span>
@@ -107,6 +110,7 @@
 
           <div class="v23-play-buttons">
             <button class="primary" onclick="randomMatch()">🎲 랜덤 매칭</button>
+            <button class="ai-battle-button" onclick="openAiBattle()">🤖 AI 대전</button>
             <button class="v29-ranked-btn-inline" onclick="openCompetitiveSeason()">🏆 랭크 시즌</button>
             <button onclick="toggleV23Panel('v23CreateBox')">🏠 방 만들기</button>
             <button onclick="toggleV23Panel('v23JoinBox')">🔑 방 참가</button>
@@ -230,6 +234,9 @@
           </div>
 
           <div id="countdownBox" class="countdown-box">3</div>
+          <div id="finalCountdownBurst" class="final-countdown-burst"></div>
+          <div id="wordImpactOverlay" class="word-impact-overlay"></div>
+          <div id="matchFeelOverlay" class="match-feel-overlay"></div>
 
           <div class="info timer">⏱ 남은 시간: <span id="timeLimit">20</span>초</div>
           <div class="info turn-box">🎯 현재 차례<br><span id="turnPlayer"></span></div>
@@ -556,6 +563,58 @@
     </div>
   </div>
 
+
+  <div id="aiBattleModal" class="ai-battle-modal">
+    <div class="ai-battle-card">
+      <div class="ai-battle-head">
+        <div>
+          <div class="ai-battle-kicker">V3.4 · AI BATTLE</div>
+          <h2>🤖 혼자서 바로 대전</h2>
+          <p>AI 난이도와 플레이 성향을 선택하면 즉시 경기가 시작됩니다.</p>
+        </div>
+        <button class="competitive-close" onclick="closeAiBattle()">닫기</button>
+      </div>
+
+      <div class="ai-battle-grid">
+        <label>
+          <span>난이도</span>
+          <select id="aiDifficulty">
+            <option value="beginner">🌱 입문 · 느리고 실수가 많음</option>
+            <option value="easy">🙂 쉬움 · 짧고 안전한 단어</option>
+            <option value="normal" selected>⚔️ 보통 · 균형 잡힌 플레이</option>
+            <option value="hard">🔥 어려움 · 공격적인 선택</option>
+            <option value="expert">🧠 전문가 · 빠르고 전략적</option>
+            <option value="mythic">🌠 신화 · 최고 수준</option>
+          </select>
+        </label>
+        <label>
+          <span>AI 인원</span>
+          <select id="aiBotCount">
+            <option value="1" selected>AI 1명 · 1대1</option>
+            <option value="2">AI 2명 · 3인전</option>
+            <option value="3">AI 3명 · 4인전</option>
+          </select>
+        </label>
+        <label>
+          <span>AI 성향</span>
+          <select id="aiPersonality">
+            <option value="balanced" selected>⚖️ 균형형</option>
+            <option value="aggressive">⚔️ 공격형</option>
+            <option value="safe">🛡️ 안정형</option>
+            <option value="longword">📚 긴 단어형</option>
+            <option value="gambler">🎲 도박형</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="ai-battle-note">
+        <strong>연습 경기</strong>
+        <span>랭크 LP에는 영향을 주지 않으며 일반 경기 보상과 통계는 기존 규칙대로 적용됩니다.</span>
+      </div>
+      <button id="aiBattleStartButton" class="ai-battle-start" onclick="startAiBattle()">🤖 AI 대전 시작</button>
+    </div>
+  </div>
+
 <div id="rankEventOverlay" class="rank-event-overlay">
   <div class="rank-event-card">
     <div id="rankEventTitle" class="rank-event-title">PROMOTION!</div>
@@ -572,7 +631,36 @@
       <h2>⚙️ 설정</h2>
       <div class="settings-row">
         <span>🔊 효과음</span>
-        <button onclick="toggleSetting('sound')"><span id="soundSettingText">ON</span></button>
+        <button onclick="toggleSetting('sfx')"><span id="soundSettingText">ON</span></button>
+      </div>
+      <div class="settings-row">
+        <span>🎚️ SFX 볼륨</span>
+        <input id="sfxVolume" type="range" min="0" max="100" value="95" oninput="setSfxVolume(this.value/100)" />
+        <strong id="sfxVolumeText">95%</strong>
+      </div>
+      <div class="settings-row">
+        <span>🎼 BGM</span>
+        <button onclick="toggleSetting('bgm')"><span id="bgmSettingText">OFF</span></button>
+      </div>
+      <div class="settings-row">
+        <span>🎚️ BGM 볼륨</span>
+        <input id="bgmVolume" type="range" min="0" max="100" value="28" oninput="setBgmVolume(this.value/100)" />
+        <strong id="bgmVolumeText">28%</strong>
+      </div>
+      <div class="settings-row">
+        <span>🎛️ Master</span>
+        <input id="masterVolume" type="range" min="0" max="100" value="90" oninput="setMasterVolume(this.value/100)" />
+        <strong id="masterVolumeText">90%</strong>
+      </div>
+      <div class="settings-row sound-test-row">
+        <span>🧪 Sound Test</span>
+        <div class="sound-test-buttons">
+          <button onclick="playSound('correct',{length:4,power:0,word:'테스트'})">Correct</button>
+          <button onclick="playSound('error')">Wrong</button>
+          <button onclick="playSound('correct',{length:12,power:4,word:'레전더리테스트'})">Legendary</button>
+          <button onclick="playSound('victory')">Victory</button>
+          <button onclick="resetAudioSettings()">Reset Audio Settings</button>
+        </div>
       </div>
       <div class="settings-row">
         <span>✨ 애니메이션</span>
@@ -584,6 +672,17 @@
 
   <div id="polishToast" class="polish-toast"></div>
 
+<script src="/js/utils.js"></script>
+<script src="/js/settings.js"></script>
+<script src="/js/audioManager.js"></script>
+<script src="/js/uiEffects.js"></script>
+<script src="/js/ranked.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/lobby.js"></script>
+<script src="/js/room.js"></script>
+<script src="/js/social.js"></script>
+<script src="/js/shop.js"></script>
+<script src="/js/collection.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>

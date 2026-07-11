@@ -1,0 +1,31 @@
+{
+  "name": "WCA SFX Arcade Pro v3",
+  "type": "SFX-only",
+  "files": [
+    "button.wav",
+    "click.wav",
+    "close.wav",
+    "combo.wav",
+    "correct.wav",
+    "correct2.wav",
+    "correct3.wav",
+    "correct4.wav",
+    "countdown.wav",
+    "defeat.wav",
+    "demotion.wav",
+    "error.wav",
+    "friendInvite.wav",
+    "invite.wav",
+    "legendary.wav",
+    "match.wav",
+    "matchFound.wav",
+    "open.wav",
+    "pass.wav",
+    "promotion.wav",
+    "purchase.wav",
+    "submit.wav",
+    "turn.wav",
+    "victory.wav",
+    "wrong.wav"
+  ]
+}

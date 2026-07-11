@@ -121,8 +121,133 @@ function getDefaultProfile(nickname) {
     placementWins: 0,
     rankedMatchHistory: [],
     seasonHighestTier: "Unranked",
-    seasonHighestLP: 0
+    seasonHighestLP: 0,
+    totalMatches: 0,
+    totalWins: 0,
+    totalLosses: 0,
+    totalWordsPlayed: 0,
+    totalCharactersPlayed: 0,
+    averageWordLength: 0,
+    longestWord: "",
+    longestWordLength: 0,
+    fastestValidWordMs: 0,
+    averageTurnTimeMs: 0,
+    totalTurnTimeMs: 0,
+    timedValidWordCount: 0,
+    highestCombo: 0,
+    perfectWordCount: 0,
+    longWordCount: 0,
+    legendaryWordCount: 0,
+    mvpCount: 0,
+    totalPlayTimeSeconds: 0,
+    favoriteStartingCharacter: "",
+    favoriteEndingCharacter: "",
+    startingCharacterCounts: {},
+    endingCharacterCounts: {},
+    recentMatches: [],
+    dailyMissions: {
+      dateKey: "",
+      missions: []
+    }
   };
+}
+
+function safeNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function clampInt(value, min = 0, max = Number.MAX_SAFE_INTEGER) {
+  return Math.max(min, Math.min(max, Math.floor(safeNumber(value, min))));
+}
+
+function emptyDailyMissionSet(dateKey = koreaDateKey()) {
+  return [
+    {
+      id: "daily_match_3",
+      name: "오늘의 아레나",
+      desc: "오늘 경기 3회 플레이",
+      type: "matches",
+      target: 3,
+      progress: 0,
+      claimed: false,
+      reward: { coins: 180, xp: 80 }
+    },
+    {
+      id: "daily_words_20",
+      name: "단어 러시",
+      desc: "오늘 유효 단어 20개 제출",
+      type: "words",
+      target: 20,
+      progress: 0,
+      claimed: false,
+      reward: { coins: 220, xp: 120 }
+    },
+    {
+      id: "daily_combo_3",
+      name: "콤보 감각",
+      desc: "한 경기에서 3콤보 달성",
+      type: "combo",
+      target: 3,
+      progress: 0,
+      claimed: false,
+      reward: { box: "common", amount: 1 }
+    }
+  ].map(mission => ({ ...mission, dateKey }));
+}
+
+function ensureDailyMissionFields(profile) {
+  if (!profile.dailyMissions || typeof profile.dailyMissions !== "object") {
+    profile.dailyMissions = { dateKey: "", missions: [] };
+  }
+  const today = koreaDateKey();
+  if (profile.dailyMissions.dateKey !== today || !Array.isArray(profile.dailyMissions.missions) || profile.dailyMissions.missions.length !== 3) {
+    profile.dailyMissions.dateKey = today;
+    profile.dailyMissions.missions = emptyDailyMissionSet(today);
+    return;
+  }
+
+  const templates = emptyDailyMissionSet(today);
+  profile.dailyMissions.missions = templates.map(template => {
+    const existing = profile.dailyMissions.missions.find(mission => mission && mission.id === template.id) || {};
+    return {
+      ...template,
+      progress: clampInt(existing.progress, 0, template.target),
+      claimed: !!existing.claimed
+    };
+  });
+}
+
+function ensureProgressionFields(profile) {
+  if (!profile) return;
+  profile.totalMatches = clampInt(profile.totalMatches, 0);
+  profile.totalWins = clampInt(profile.totalWins, 0);
+  profile.totalLosses = clampInt(profile.totalLosses, 0);
+  profile.totalWordsPlayed = clampInt(profile.totalWordsPlayed, 0);
+  profile.totalCharactersPlayed = clampInt(profile.totalCharactersPlayed, 0);
+  profile.longestWord = typeof profile.longestWord === "string" ? profile.longestWord : "";
+  profile.longestWordLength = Math.max(clampInt(profile.longestWordLength, 0), koreanLength(profile.longestWord));
+  profile.fastestValidWordMs = clampInt(profile.fastestValidWordMs, 0);
+  profile.totalTurnTimeMs = clampInt(profile.totalTurnTimeMs, 0);
+  profile.timedValidWordCount = clampInt(profile.timedValidWordCount, 0);
+  profile.averageTurnTimeMs = profile.timedValidWordCount
+    ? Math.round(profile.totalTurnTimeMs / profile.timedValidWordCount)
+    : clampInt(profile.averageTurnTimeMs, 0);
+  profile.averageWordLength = profile.totalWordsPlayed
+    ? Number((profile.totalCharactersPlayed / profile.totalWordsPlayed).toFixed(2))
+    : 0;
+  profile.highestCombo = clampInt(profile.highestCombo, 0);
+  profile.perfectWordCount = clampInt(profile.perfectWordCount, 0);
+  profile.longWordCount = clampInt(profile.longWordCount, 0);
+  profile.legendaryWordCount = clampInt(profile.legendaryWordCount, 0);
+  profile.mvpCount = clampInt(profile.mvpCount, 0);
+  profile.totalPlayTimeSeconds = clampInt(profile.totalPlayTimeSeconds, 0);
+  profile.favoriteStartingCharacter = typeof profile.favoriteStartingCharacter === "string" ? profile.favoriteStartingCharacter : "";
+  profile.favoriteEndingCharacter = typeof profile.favoriteEndingCharacter === "string" ? profile.favoriteEndingCharacter : "";
+  if (!profile.startingCharacterCounts || typeof profile.startingCharacterCounts !== "object" || Array.isArray(profile.startingCharacterCounts)) profile.startingCharacterCounts = {};
+  if (!profile.endingCharacterCounts || typeof profile.endingCharacterCounts !== "object" || Array.isArray(profile.endingCharacterCounts)) profile.endingCharacterCounts = {};
+  profile.recentMatches = Array.isArray(profile.recentMatches) ? profile.recentMatches.slice(-20) : [];
+  ensureDailyMissionFields(profile);
 }
 
 
@@ -141,6 +266,7 @@ function ensureGrowthFields(profile) {
   if (typeof profile.favorites.badgeId !== "string") profile.favorites.badgeId = "";
   if (profile.level > 100) profile.level = 100;
   ensureRankedFields(profile);
+  ensureProgressionFields(profile);
 }
 
 function getNextLevelXp(level) {
@@ -878,6 +1004,33 @@ function recordQuestProgress(profile, gains) {
   }
 }
 
+function recordDailyMissionProgress(profile, gains = {}) {
+  ensureDailyMissionFields(profile);
+  for (const mission of profile.dailyMissions.missions) {
+    const amount = Math.max(0, Math.floor(Number(gains[mission.type]) || 0));
+    if (!amount) continue;
+    mission.progress = Math.min(mission.target, Math.max(0, Number(mission.progress) || 0) + amount);
+  }
+}
+
+function publicDailyMissions(profile) {
+  ensureDailyMissionFields(profile);
+  return {
+    dateKey: profile.dailyMissions.dateKey,
+    missions: profile.dailyMissions.missions.map(mission => {
+      const progress = Math.min(mission.target, Math.max(0, Number(mission.progress) || 0));
+      return {
+        ...mission,
+        progress,
+        value: progress,
+        completed: progress >= mission.target,
+        percent: Math.min(100, Math.floor((progress / mission.target) * 100)),
+        claimed: !!mission.claimed
+      };
+    })
+  };
+}
+
 function grantReward(profile, reward) {
   ensureShopFields(profile);
   const granted = [];
@@ -995,6 +1148,7 @@ function emitPremiumData(socket) {
   if (!nickname) return;
   const profile = ensureProfile(nickname);
   socket.emit("questData", publicQuestData(profile));
+  socket.emit("dailyMissionData", publicDailyMissions(profile));
   socket.emit("friendsData", publicFriendsData(profile));
   socket.emit("dailyLoginData", publicDailyLogin(profile));
   socket.emit("notificationData",{items:profile.notifications.slice().reverse(),unread:profile.notifications.filter(item=>!item.read).length});
@@ -1239,7 +1393,21 @@ const ACHIEVEMENTS = [
     coins: 5000,
     title: "💯 백전백승",
     getValue: p => p.wins
-  }
+  },
+  { id: "v33_first_match", name: "첫 경기", desc: "첫 경기를 완료", rarity: "normal", target: 1, xp: 80, coins: 80, title: "첫 발걸음", getValue: p => p.totalMatches || p.games || 0 },
+  { id: "v33_first_win", name: "첫 승리", desc: "첫 승리를 달성", rarity: "normal", target: 1, xp: 120, coins: 120, title: "첫 승리자", getValue: p => p.totalWins || p.wins || 0 },
+  { id: "v33_wins_10", name: "10승 달성", desc: "총 10승 달성", rarity: "rare", target: 10, xp: 500, coins: 600, title: "아레나 승부사", getValue: p => p.totalWins || p.wins || 0 },
+  { id: "v33_wins_100", name: "100승 달성", desc: "총 100승 달성", rarity: "epic", target: 100, xp: 2400, coins: 3500, title: "백전백승", getValue: p => p.totalWins || p.wins || 0 },
+  { id: "v33_words_500", name: "500 단어", desc: "유효 단어 500개 제출", rarity: "rare", target: 500, xp: 900, coins: 1000, title: "단어 장인", getValue: p => p.totalWordsPlayed || p.wordsUsed || 0 },
+  { id: "v33_long_beginner", name: "장문 입문", desc: "6글자 이상 단어 10회 제출", rarity: "rare", target: 10, xp: 500, coins: 700, title: "장문 입문자", getValue: p => p.longWordCount || 0 },
+  { id: "v33_legendary_word", name: "LEGENDARY WORD", desc: "12글자 이상 단어 1회 제출", rarity: "legend", target: 1, xp: 1200, coins: 1500, title: "전설의 단어", getValue: p => p.legendaryWordCount || 0 },
+  { id: "v33_combo_5", name: "5 COMBO", desc: "한 경기 최고 5콤보 달성", rarity: "rare", target: 5, xp: 500, coins: 600, title: "콤보 러너", getValue: p => p.highestCombo || 0 },
+  { id: "v33_combo_10", name: "10 COMBO", desc: "한 경기 최고 10콤보 달성", rarity: "epic", target: 10, xp: 1200, coins: 1600, title: "콤보 마스터", getValue: p => p.highestCombo || 0 },
+  { id: "v33_perfect_10", name: "PERFECT 10", desc: "PERFECT 단어 10회 제출", rarity: "epic", target: 10, xp: 1000, coins: 1300, title: "순간 판단", getValue: p => p.perfectWordCount || 0 },
+  { id: "v33_ranked_debut", name: "랭크 데뷔", desc: "랭크 경기 1회 플레이", rarity: "normal", target: 1, xp: 200, coins: 250, title: "랭크 도전자", getValue: p => (p.rankedWins || 0) + (p.rankedLosses || 0) },
+  { id: "v33_diamond_reached", name: "다이아 도달", desc: "시즌 최고 티어 Diamond 이상 달성", rarity: "legend", target: 1, xp: 1800, coins: 2400, title: "다이아 챌린저", getValue: p => ["Diamond","Emerald","Ruby","Master","Grandmaster","Mythic"].includes(p.seasonHighestTier) ? 1 : 0 },
+  { id: "v33_mythic_reached", name: "Mythic 도달", desc: "시즌 최고 티어 Mythic 달성", rarity: "mythic", target: 1, xp: 4000, coins: 6000, title: "신화의 왕좌", getValue: p => p.seasonHighestTier === "Mythic" ? 1 : 0 },
+  { id: "v33_mvp_10", name: "MVP 10회", desc: "경기 MVP 10회 달성", rarity: "legend", target: 10, xp: 2000, coins: 3000, title: "아레나 MVP", getValue: p => p.mvpCount || 0 }
 ];
 
 function ensureAchievementFields(profile) {
@@ -1399,6 +1567,25 @@ function publicProfile(nickname) {
     ,favoriteTitle: profile.favorites.title || profile.selectedTitle || ""
     ,favoriteBadge: favoriteBadge ? { id:favoriteBadge.id,name:favoriteBadge.name,icon:favoriteBadge.icon||"🏅" } : null
     ,...publicRankedData(profile)
+    ,totalMatches: profile.totalMatches || profile.games || 0
+    ,totalWins: profile.totalWins || profile.wins || 0
+    ,totalLosses: profile.totalLosses || profile.losses || 0
+    ,totalWordsPlayed: profile.totalWordsPlayed || profile.wordsUsed || 0
+    ,totalCharactersPlayed: profile.totalCharactersPlayed || 0
+    ,averageWordLength: profile.averageWordLength || 0
+    ,longestWord: profile.longestWord || ""
+    ,longestWordLength: profile.longestWordLength || 0
+    ,fastestValidWordMs: profile.fastestValidWordMs || 0
+    ,averageTurnTimeMs: profile.averageTurnTimeMs || 0
+    ,highestCombo: profile.highestCombo || 0
+    ,perfectWordCount: profile.perfectWordCount || 0
+    ,longWordCount: profile.longWordCount || 0
+    ,totalPlayTimeSeconds: profile.totalPlayTimeSeconds || 0
+    ,favoriteStartingCharacter: profile.favoriteStartingCharacter || ""
+    ,favoriteEndingCharacter: profile.favoriteEndingCharacter || ""
+    ,mvpCount: profile.mvpCount || 0
+    ,recentMatches: (profile.recentMatches || []).slice().reverse()
+    ,dailyMissions: publicDailyMissions(profile)
     ,currentCosmetics: Object.fromEntries(["profileBorder","profileBackground","chatEffect","entranceEffect","victoryEffect","levelUpEffect"].map(type=>{
       const item=getEquippedItem(profile,type);return [type,item?{id:item.id,name:item.name,icon:item.icon||"🎁"}:null];
     }))
@@ -1501,6 +1688,19 @@ function getRankings(nickname) {
     coins: makeRankingList("coins"),
     streak: makeRankingList("streak"),
     myRanks: nickname ? getMyRankings(nickname) : {}
+  };
+}
+
+function publicRankedUxData(profile) {
+  const ranked = publicRankedData(profile);
+  const history = ranked.rankedMatchHistory || [];
+  const recentForm = history.slice(0, 5).map(match => match.result === "win" ? "W" : "L");
+  return {
+    ...ranked,
+    seasonGames: (profile.rankedWins || 0) + (profile.rankedLosses || 0),
+    currentWinStreak: profile.currentWinStreak || 0,
+    highestWinStreak: profile.bestWinStreak || 0,
+    recentForm
   };
 }
 
@@ -1839,7 +2039,8 @@ function getMatchResult(room) {
     durationSec,
     usedWordCount: room.usedWords ? room.usedWords.length : 0,
     eliminationOrder: room.eliminationOrder || [],
-    rewards: room.rewards || []
+    rewards: room.rewards || [],
+    mvpSummary: room.mvpSummary || null
   };
 }
 
@@ -1861,6 +2062,132 @@ function addElimination(room, player, reason) {
   });
 }
 
+function koreanLength(text) {
+  return Array.from(String(text || "")).length;
+}
+
+function getLongWordBonus(word) {
+  const length = koreanLength(word);
+  if (length >= 12) return { label: "LEGENDARY", length, xp: 20, coins: 20, power: 4 };
+  if (length >= 10) return { label: "AMAZING", length, xp: 10, coins: 10, power: 3 };
+  if (length >= 8) return { label: "GREAT", length, xp: 5, coins: 5, power: 2 };
+  if (length >= 6) return { label: "GOOD", length, xp: 2, coins: 2, power: 1 };
+  return { label: "", length, xp: 0, coins: 0, power: 0 };
+}
+
+function ensureGameFeelState(room) {
+  if (!room) return;
+  if (!room.comboByPlayer || typeof room.comboByPlayer !== "object") room.comboByPlayer = {};
+  if (!room.longWordRewards || typeof room.longWordRewards !== "object") room.longWordRewards = {};
+  if (!room.playerMatchStats || typeof room.playerMatchStats !== "object") room.playerMatchStats = {};
+  if (!Number.isFinite(room.wordEventSeq)) room.wordEventSeq = 0;
+}
+
+function getRoomPlayerStats(room, player) {
+  ensureGameFeelState(room);
+  const playerId = player?.playerId || player?.nickname || "";
+  if (!playerId) return null;
+  if (!room.playerMatchStats[playerId]) {
+    room.playerMatchStats[playerId] = {
+      playerId,
+      nickname: player.nickname || playerId,
+      validWords: 0,
+      totalCharacters: 0,
+      longestWord: "",
+      longestWordLength: 0,
+      highestCombo: 0,
+      perfectWordCount: 0,
+      longWordCount: 0,
+      legendaryWordCount: 0,
+      totalResponseMs: 0,
+      responseCount: 0,
+      fastestResponseMs: 0,
+      startingCharacterCounts: {},
+      endingCharacterCounts: {}
+    };
+  }
+  return room.playerMatchStats[playerId];
+}
+
+function addCharacterCount(map, char) {
+  if (!char) return;
+  map[char] = Math.max(0, Number(map[char]) || 0) + 1;
+}
+
+function favoriteCharacterFromCounts(map) {
+  return Object.entries(map || {})
+    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))[0]?.[0] || "";
+}
+
+function resetPlayerCombo(room, playerId) {
+  ensureGameFeelState(room);
+  if (playerId) room.comboByPlayer[playerId] = 0;
+}
+
+function recordAcceptedWordFeel(room, player, word) {
+  ensureGameFeelState(room);
+  if (!player) return null;
+
+  const bonus = getLongWordBonus(word);
+  const playerId = player.playerId || player.nickname;
+  const currentCombo = Math.max(0, Number(room.comboByPlayer[playerId]) || 0) + 1;
+  const responseMs = room.timerStartedAt ? Math.max(0, Date.now() - room.timerStartedAt) : 0;
+  const perfect = responseMs > 0 && responseMs <= 3000;
+
+  room.comboByPlayer[playerId] = currentCombo;
+
+  if (!player.isBot && (bonus.xp || bonus.coins)) {
+    const previous = room.longWordRewards[playerId] || { xp: 0, coins: 0, count: 0, legendary: 0 };
+    previous.xp += bonus.xp;
+    previous.coins += bonus.coins;
+    previous.count += 1;
+    if (bonus.label === "LEGENDARY") previous.legendary += 1;
+    room.longWordRewards[playerId] = previous;
+  }
+
+  room.wordEventSeq = (room.wordEventSeq || 0) + 1;
+  room.lastWordEvent = {
+    id: room.wordEventSeq,
+    playerId,
+    nickname: player.nickname,
+    word,
+    length: bonus.length,
+    label: bonus.label,
+    xp: bonus.xp,
+    coins: bonus.coins,
+    combo: currentCombo,
+    perfect,
+    power: bonus.power,
+    time: Date.now()
+  };
+
+  const stats = getRoomPlayerStats(room, player);
+  if (stats) {
+    stats.validWords++;
+    stats.totalCharacters += bonus.length;
+    if (bonus.length > stats.longestWordLength) {
+      stats.longestWord = word;
+      stats.longestWordLength = bonus.length;
+    }
+    stats.highestCombo = Math.max(stats.highestCombo, currentCombo);
+    if (perfect) stats.perfectWordCount++;
+    if (bonus.power > 0) stats.longWordCount++;
+    if (bonus.label === "LEGENDARY") stats.legendaryWordCount++;
+    if (responseMs > 0) {
+      stats.totalResponseMs += responseMs;
+      stats.responseCount++;
+      stats.fastestResponseMs = stats.fastestResponseMs
+        ? Math.min(stats.fastestResponseMs, responseMs)
+        : responseMs;
+    }
+    const chars = Array.from(String(word || ""));
+    addCharacterCount(stats.startingCharacterCounts, chars[0]);
+    addCharacterCount(stats.endingCharacterCounts, chars[chars.length - 1]);
+  }
+
+  return room.lastWordEvent;
+}
+
 function ensureRoomSocialFields(room) {
   if (!room) return;
   if (room.mode !== "ranked") room.mode = "normal";
@@ -1879,6 +2206,7 @@ function ensureRoomSocialFields(room) {
 
 function publicRoom(room) {
   ensureRoomSocialFields(room);
+  ensureGameFeelState(room);
   const turnPlayer = normalizeTurn(room);
   const nextWordInfo = getNextWordInfo(room);
 
@@ -1924,6 +2252,7 @@ function publicRoom(room) {
     lastNotice: room.lastNotice,
     notice: room.notice || "",
     noticeUntil: room.noticeUntil || 0,
+    lastWordEvent: room.lastWordEvent || null,
     startWord: room.startWord,
     requiredStarts: nextWordInfo.requiredStarts,
     remainingWordCount: nextWordInfo.remainingWordCount,
@@ -2040,6 +2369,117 @@ function setRoomNotice(roomCode, text, duration = 2500) {
   }, duration + 100);
 }
 
+function mergeCharacterCounts(target, source) {
+  for (const [char, count] of Object.entries(source || {})) {
+    if (!char) continue;
+    target[char] = Math.max(0, Number(target[char]) || 0) + Math.max(0, Number(count) || 0);
+  }
+}
+
+function buildMatchMvpSummary(room, winnerNames) {
+  ensureGameFeelState(room);
+  let best = null;
+  let longest = null;
+  let highestCombo = null;
+  let fastest = null;
+
+  for (const player of room.players || []) {
+    if (player.isBot || player.isSpectator) continue;
+    const stats = getRoomPlayerStats(room, player);
+    if (!stats) continue;
+    const avgResponse = stats.responseCount ? stats.totalResponseMs / stats.responseCount : 99999;
+    const winnerBonus = winnerNames.includes(player.nickname) ? 20 : 0;
+    const speedBonus = stats.responseCount ? Math.max(0, Math.round((5000 - Math.min(avgResponse, 5000)) / 200)) : 0;
+    const survivalBonus = !player.eliminated ? 10 : 0;
+    const score = stats.validWords * 5 + stats.totalCharacters + stats.longestWordLength * 3 + stats.highestCombo * 4 + speedBonus + winnerBonus + survivalBonus;
+    const candidate = {
+      playerId: player.playerId,
+      nickname: player.nickname,
+      score,
+      validWords: stats.validWords,
+      totalCharacters: stats.totalCharacters,
+      averageResponseMs: stats.responseCount ? Math.round(avgResponse) : 0,
+      fastestAnswerMs: stats.fastestResponseMs || 0,
+      longestWord: stats.longestWord,
+      longestWordLength: stats.longestWordLength,
+      highestCombo: stats.highestCombo
+    };
+    if (!best || candidate.score > best.score) best = candidate;
+    if (!longest || stats.longestWordLength > longest.length) longest = { nickname: player.nickname, word: stats.longestWord, length: stats.longestWordLength };
+    if (!highestCombo || stats.highestCombo > highestCombo.combo) highestCombo = { nickname: player.nickname, combo: stats.highestCombo };
+    if (stats.fastestResponseMs && (!fastest || stats.fastestResponseMs < fastest.ms)) fastest = { nickname: player.nickname, ms: stats.fastestResponseMs };
+  }
+
+  return best ? {
+    mvp: best,
+    longestWord: longest || { nickname: "", word: "", length: 0 },
+    highestCombo: highestCombo || { nickname: "", combo: 0 },
+    fastestAnswer: fastest || { nickname: "", ms: 0 }
+  } : null;
+}
+
+function updateProfileProgressionFromMatch(profile, room, player, stats, isWinner, rankedResult, matchReward, durationSec) {
+  ensureProgressionFields(profile);
+  stats = stats || getRoomPlayerStats(room, player) || {};
+  const wordCount = clampInt(stats.validWords, 0);
+  const charCount = clampInt(stats.totalCharacters, 0);
+
+  profile.totalMatches++;
+  if (isWinner) profile.totalWins++;
+  else profile.totalLosses++;
+  profile.totalWordsPlayed += wordCount;
+  profile.totalCharactersPlayed += charCount;
+  profile.averageWordLength = profile.totalWordsPlayed
+    ? Number((profile.totalCharactersPlayed / profile.totalWordsPlayed).toFixed(2))
+    : 0;
+  if ((stats.longestWordLength || 0) > (profile.longestWordLength || 0)) {
+    profile.longestWord = stats.longestWord || "";
+    profile.longestWordLength = stats.longestWordLength || koreanLength(profile.longestWord);
+  }
+  if (stats.fastestResponseMs) {
+    profile.fastestValidWordMs = profile.fastestValidWordMs
+      ? Math.min(profile.fastestValidWordMs, stats.fastestResponseMs)
+      : stats.fastestResponseMs;
+  }
+  if (stats.responseCount) {
+    profile.totalTurnTimeMs += stats.totalResponseMs || 0;
+    profile.timedValidWordCount += stats.responseCount || 0;
+    profile.averageTurnTimeMs = profile.timedValidWordCount
+      ? Math.round(profile.totalTurnTimeMs / profile.timedValidWordCount)
+      : 0;
+  }
+  profile.highestCombo = Math.max(profile.highestCombo || 0, stats.highestCombo || 0);
+  profile.perfectWordCount += stats.perfectWordCount || 0;
+  profile.longWordCount += stats.longWordCount || 0;
+  profile.legendaryWordCount += stats.legendaryWordCount || 0;
+  profile.totalPlayTimeSeconds += Math.max(0, durationSec || 0);
+  mergeCharacterCounts(profile.startingCharacterCounts, stats.startingCharacterCounts);
+  mergeCharacterCounts(profile.endingCharacterCounts, stats.endingCharacterCounts);
+  profile.favoriteStartingCharacter = favoriteCharacterFromCounts(profile.startingCharacterCounts);
+  profile.favoriteEndingCharacter = favoriteCharacterFromCounts(profile.endingCharacterCounts);
+
+  const opponents = (room.players || [])
+    .filter(other => !other.isBot && other.nickname !== player.nickname)
+    .map(other => other.nickname)
+    .slice(0, 7);
+
+  profile.recentMatches.push({
+    date: new Date().toISOString(),
+    mode: room.mode || "normal",
+    result: isWinner ? "win" : "loss",
+    ranked: room.mode === "ranked",
+    opponents,
+    durationSeconds: Math.max(0, durationSec || 0),
+    wordsPlayed: wordCount,
+    longestWord: stats.longestWord || "",
+    highestCombo: stats.highestCombo || 0,
+    xpEarned: matchReward.xp || 0,
+    coinsEarned: matchReward.coins || 0,
+    lpChange: rankedResult ? rankedResult.lpChange || 0 : 0
+  });
+  profile.recentMatches = profile.recentMatches.slice(-20);
+}
+
 
 
 function calculateMatchGrowthReward(room, player, isWinner) {
@@ -2071,6 +2511,13 @@ function calculateMatchGrowthReward(room, player, isWinner) {
   const wordBonus = Math.min(Math.floor(usedCount / 3) * 5, 40);
   if (wordBonus > 0) add("긴 경기 보너스", wordBonus, Math.floor(wordBonus / 2));
 
+  const feelRewards = room.longWordRewards && player
+    ? room.longWordRewards[player.playerId || player.nickname]
+    : null;
+  if (feelRewards && (feelRewards.xp || feelRewards.coins)) {
+    add(`장문 보너스 ${feelRewards.count || 0}회`, feelRewards.xp || 0, feelRewards.coins || 0);
+  }
+
   return {
     xp: breakdown.reduce((sum, item) => sum + item.xp, 0),
     coins: breakdown.reduce((sum, item) => sum + item.coins, 0),
@@ -2088,6 +2535,11 @@ function applyMatchRewards(room) {
     .split(",")
     .map(name => name.trim())
     .filter(Boolean);
+  const durationSec = room.matchStartedAt
+    ? Math.max(0, Math.floor(((room.matchEndedAt || Date.now()) - room.matchStartedAt) / 1000))
+    : 0;
+  const mvpSummary = buildMatchMvpSummary(room, winnerNames);
+  room.mvpSummary = mvpSummary;
 
   const rewardedPlayers = new Set();
 
@@ -2116,13 +2568,30 @@ function applyMatchRewards(room) {
       profile.currentWinStreak = 0;
     }
 
+    const matchStats = getRoomPlayerStats(room, player);
     const matchReward = calculateMatchGrowthReward(room, player, isWinner);
+    const isMvp = !!(mvpSummary && mvpSummary.mvp && mvpSummary.mvp.playerId === rewardKey);
+    if (isMvp) {
+      matchReward.xp += 20;
+      matchReward.coins += 10;
+      matchReward.breakdown.push({ label: "MVP 보너스", xp: 20, coins: 10 });
+      profile.mvpCount = Math.max(0, Number(profile.mvpCount) || 0) + 1;
+    }
+    updateProfileProgressionFromMatch(profile, room, player, matchStats, isWinner, rankedResult, matchReward, durationSec);
     const xpResult = addXp(profile, matchReward.xp);
     profile.coins += matchReward.coins;
     recordQuestProgress(profile, {
       games: 1,
       wins: isWinner ? 1 : 0,
       xp: matchReward.xp
+    });
+    recordDailyMissionProgress(profile, {
+      matches: 1,
+      wins: isWinner ? 1 : 0,
+      words: matchStats ? matchStats.validWords : 0,
+      longWords: matchStats ? matchStats.longWordCount : 0,
+      combo: matchStats ? matchStats.highestCombo : 0,
+      ranked: room.mode === "ranked" ? 1 : 0
     });
 
     updateTitles(profile);
@@ -2148,10 +2617,19 @@ function applyMatchRewards(room) {
       levelRewards,
       achievements: unlockedAchievements
       ,ranked: rankedResult
+      ,mvp: isMvp
+      ,matchStats: matchStats ? {
+        validWords: matchStats.validWords,
+        totalCharacters: matchStats.totalCharacters,
+        longestWord: matchStats.longestWord,
+        longestWordLength: matchStats.longestWordLength,
+        highestCombo: matchStats.highestCombo,
+        fastestAnswerMs: matchStats.fastestResponseMs || 0
+      } : null
     });
 
     if (room.mode === "ranked" && player.socketId) {
-      io.to(player.socketId).emit("rankedData", publicRankedData(profile));
+      io.to(player.socketId).emit("rankedData", publicRankedUxData(profile));
     }
   }
 
@@ -2191,6 +2669,7 @@ function eliminatePlayer(roomCode, player, reason) {
   if (!room || !player || player.eliminated) return;
 
   player.eliminated = true;
+  resetPlayerCombo(room, player.playerId || player.nickname);
   room.wrongCount = 0;
   room.lastNotice = `${player.nickname} 탈락! ${reason}`;
   addElimination(room, player, reason);
@@ -2448,13 +2927,40 @@ function getNormalWordScore(word) {
   return Math.abs(nextCount - 30) + lengthPenalty;
 }
 
-function chooseBotWord(room, difficulty) {
+function chooseBotWord(room, difficulty, personality = "balanced") {
   const candidates = getCandidateWords(room);
 
   if (candidates.length === 0) return "";
 
   const safeWords = candidates.filter(word => !isOneShotWord(word));
   const oneShotWords = candidates.filter(word => isOneShotWord(word));
+
+  // V3.4 AI personality: difficulty controls raw strength, personality controls style.
+  if (personality === "longword" && Math.random() < 0.72) {
+    const source = (safeWords.length ? safeWords : candidates)
+      .slice()
+      .sort((a, b) => b.length - a.length || getNextCount(a) - getNextCount(b));
+    return pickRandomFrom(source, Math.min(12, source.length));
+  }
+
+  if (personality === "aggressive" && Math.random() < 0.72) {
+    const source = candidates
+      .slice()
+      .sort((a, b) => getNextCount(a) - getNextCount(b) || b.length - a.length);
+    return pickRandomFrom(source, Math.min(10, source.length));
+  }
+
+  if (personality === "safe" && Math.random() < 0.72) {
+    const source = (safeWords.length ? safeWords : candidates)
+      .slice()
+      .sort((a, b) => getNextCount(b) - getNextCount(a) || a.length - b.length);
+    return pickRandomFrom(source, Math.min(16, source.length));
+  }
+
+  if (personality === "gambler" && Math.random() < 0.55) {
+    if (oneShotWords.length && Math.random() < 0.42) return pickRandomFrom(oneShotWords);
+    return pickRandomFrom(candidates, candidates.length);
+  }
 
   if (difficulty === "veryEasy") {
     // 완전 쉬움: 짧고 쉬운 단어 위주, 아주 가끔 실수
@@ -2597,17 +3103,20 @@ function scheduleBotTurn(roomCode) {
 
     if (!bot || !bot.isBot || bot.playerId !== botPlayerId || bot.eliminated || !bot.connected) return;
 
-    const word = chooseBotWord(r, bot.botDifficulty);
+    const word = chooseBotWord(r, bot.botDifficulty, bot.aiPersonality);
 
     if (!word) {
       eliminatePlayer(roomCode, bot, "낼 단어가 없음");
       return;
     }
 
+    const wordFeelEvent = recordAcceptedWordFeel(r, bot, word);
     r.currentWord = word;
     r.usedWords.push(word);
     r.wrongCount = 0;
-    r.lastNotice = `🤖 ${bot.nickname}: ${word}`;
+    r.lastNotice = wordFeelEvent && wordFeelEvent.label
+      ? `🤖 ${bot.nickname}: ${word} · ${wordFeelEvent.label} ${wordFeelEvent.length}글자`
+      : `🤖 ${bot.nickname}: ${word}`;
     addSystemMessage(roomCode, `🤖 ${bot.nickname} → ${word}`);
     r.turn = nextActiveTurn(r, r.turn);
 
@@ -2682,6 +3191,12 @@ function beginGame(roomCode) {
   room.eliminationOrder = [];
   room.rewards = [];
   room.statsApplied = false;
+  room.comboByPlayer = {};
+  room.longWordRewards = {};
+  room.playerMatchStats = {};
+  room.mvpSummary = null;
+  room.wordEventSeq = 0;
+  room.lastWordEvent = null;
 
   addSystemMessage(roomCode, `🎮 게임 시작! 시작 단어는 ${startWord}`);
   setRoomNotice(roomCode, `🎮 게임 시작!\n\n시작 단어: ${startWord}`, 2500);
@@ -2749,6 +3264,12 @@ function prepareRematch(roomCode) {
   room.matchEndedAt = 0;
   room.rewards = [];
   room.statsApplied = false;
+  room.comboByPlayer = {};
+  room.longWordRewards = {};
+  room.playerMatchStats = {};
+  room.mvpSummary = null;
+  room.wordEventSeq = 0;
+  room.lastWordEvent = null;
 
   room.players.forEach(p => {
     if (p.connected || p.isBot) {
@@ -2772,6 +3293,10 @@ registerSocketHandlers(io, (socket) => {
 
   socket.on("getRoomList", () => {
     socket.emit("roomList", makeRoomList());
+  });
+
+  socket.on("clientPing", (sentAt, callback) => {
+    if (typeof callback === "function") callback({ sentAt, serverTime: Date.now() });
   });
 
   socket.on("buyBox", ({ boxType }) => {
@@ -2817,7 +3342,37 @@ registerSocketHandlers(io, (socket) => {
   socket.on("getQuests", () => {
     const nickname = socket.data.nickname;
     if (!nickname) return socket.emit("errorMessage", "로그인 후 사용할 수 있습니다.");
-    socket.emit("questData", publicQuestData(ensureProfile(nickname)));
+    const profile = ensureProfile(nickname);
+    socket.emit("questData", publicQuestData(profile));
+    socket.emit("dailyMissionData", publicDailyMissions(profile));
+  });
+
+  socket.on("getDailyMissions", () => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return socket.emit("errorMessage", "로그인 후 일일 미션을 확인할 수 있습니다.");
+    socket.emit("dailyMissionData", publicDailyMissions(ensureProfile(nickname)));
+  });
+
+  socket.on("claimDailyMission", ({ missionId }) => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return socket.emit("errorMessage", "로그인 후 일일 미션 보상을 받을 수 있습니다.");
+    const profile = ensureProfile(nickname);
+    ensureDailyMissionFields(profile);
+    const mission = profile.dailyMissions.missions.find(item => item.id === String(missionId || ""));
+    if (!mission) return socket.emit("errorMessage", "존재하지 않는 일일 미션입니다.");
+    if (mission.claimed) return socket.emit("errorMessage", "이미 받은 일일 미션 보상입니다.");
+    if ((Number(mission.progress) || 0) < mission.target) return socket.emit("errorMessage", "아직 일일 미션을 완료하지 않았습니다.");
+
+    mission.claimed = true;
+    const granted = grantReward(profile, mission.reward);
+    const unlockedAchievements = checkAchievements(profile);
+    savePlayerData();
+    socket.emit("dailyMissionClaimed", { missionId: mission.id, rewards: granted, achievements: unlockedAchievements });
+    pushNotification(nickname, "quest", `${mission.name} 완료`, { missionId: mission.id });
+    socket.emit("dailyMissionData", publicDailyMissions(profile));
+    socket.emit("questData", publicQuestData(profile));
+    socket.emit("profileData", publicProfile(nickname));
+    socket.emit("shopData", publicShopProfile(nickname));
   });
 
   socket.on("getCollection", ({ nickname: requestedNickname } = {}) => {
@@ -3243,6 +3798,102 @@ registerSocketHandlers(io, (socket) => {
   });
 
 
+  socket.on("createAiBattle", ({ playerId, difficulty, botCount, personality }) => {
+    const nickname = socket.data.nickname;
+
+    if (!nickname) {
+      socket.emit("errorMessage", "로그인 후 AI 대전을 이용할 수 있습니다.");
+      return;
+    }
+
+    if (!playerId) {
+      socket.emit("errorMessage", "플레이어 정보가 없습니다.");
+      return;
+    }
+
+    const difficultyMap = {
+      beginner: "veryEasy",
+      easy: "easy",
+      normal: "normal",
+      hard: "hard",
+      expert: "hard",
+      mythic: "hell"
+    };
+    const selectedDifficulty = difficultyMap[String(difficulty || "normal")] || "normal";
+    const selectedBotCount = Math.max(1, Math.min(Number(botCount) || 1, 3));
+    const selectedPersonality = ["balanced", "aggressive", "safe", "longword", "gambler"].includes(personality)
+      ? personality
+      : "balanced";
+    const roomCode = makeRoomCode();
+
+    rooms[roomCode] = {
+      mode: "ai",
+      aiBattle: true,
+      aiDifficulty: String(difficulty || "normal"),
+      aiPersonality: selectedPersonality,
+      players: [],
+      password: "",
+      isPublic: false,
+      createdAt: Date.now(),
+      hostId: playerId,
+      currentWord: "",
+      startWord: "",
+      turn: 0,
+      usedWords: [],
+      status: "waiting",
+      timeLimit: 20,
+      timeLeft: 20,
+      wrongCount: 0,
+      gameoverReason: "",
+      winnerText: "",
+      lastNotice: "🤖 AI 대전 준비 중",
+      notice: "",
+      noticeUntil: 0,
+      chatMessages: [],
+      readyPlayers: {},
+      countdown: 0,
+      countdownTimer: null,
+      botTimeout: null,
+      matchStartedAt: 0,
+      matchEndedAt: 0,
+      eliminationOrder: [],
+      rewards: [],
+      statsApplied: false,
+      turnDeadline: 0,
+      timerToken: 0,
+      timer: null
+    };
+
+    const room = rooms[roomCode];
+    upsertPlayer(room, socket, playerId, nickname);
+    addBotsToRoom(room, roomCode, selectedBotCount, selectedDifficulty);
+    for (const bot of room.players.filter(player => player.isBot)) {
+      bot.aiPersonality = selectedPersonality;
+      bot.aiDifficultyLabel = String(difficulty || "normal");
+    }
+    room.readyPlayers[playerId] = true;
+
+    socket.data.roomCode = roomCode;
+    socket.data.playerId = playerId;
+    socket.join(roomCode);
+    broadcastFriendPresence(nickname);
+    socket.emit("roomCreated", roomCode);
+    socket.emit("aiBattleCreated", {
+      roomCode,
+      difficulty: String(difficulty || "normal"),
+      botCount: selectedBotCount,
+      personality: selectedPersonality
+    });
+    addSystemMessage(roomCode, `🤖 ${nickname}님의 AI 대전이 시작됩니다.`);
+    sendRoomUpdate(roomCode);
+
+    setTimeout(() => {
+      const currentRoom = rooms[roomCode];
+      if (!currentRoom || currentRoom.status !== "waiting") return;
+      if (canStartRoom(currentRoom)) startCountdown(roomCode);
+    }, 900);
+  });
+
   socket.on("createRoom", ({ password, playerId, isPublic, botCount, botDifficulty }) => {
     const nickname = socket.data.nickname;
 
@@ -3403,14 +4054,14 @@ registerSocketHandlers(io, (socket) => {
   socket.on("getRankedData", () => {
     const nickname = socket.data.nickname;
     if (!nickname) return socket.emit("errorMessage", "로그인 후 랭크 정보를 확인할 수 있습니다.");
-    socket.emit("rankedData", publicRankedData(ensureProfile(nickname)));
+    socket.emit("rankedData", publicRankedUxData(ensureProfile(nickname)));
   });
 
   socket.on("getRankedLeaderboard", () => {
   const board = Object.keys(playerData)
     .map(nickname => {
       const profile = ensureProfile(nickname);
-      const ranked = publicRankedData(profile);
+      const ranked = publicRankedUxData(profile);
       return {
         nickname,
         ...ranked
@@ -3644,6 +4295,7 @@ registerSocketHandlers(io, (socket) => {
     const roomCode=socket.data.roomCode;const room=rooms[roomCode];const player=room&&findPlayer(room,socket.data.playerId);
     if (!room||!player) return;
     const wasTurn=room.players[room.turn]&&room.players[room.turn].playerId===player.playerId;
+    resetPlayerCombo(room, player.playerId || player.nickname);
     socket.leave(roomCode);room.players=room.players.filter(p=>p.playerId!==player.playerId);
     delete room.readyPlayers[player.playerId];
     if (room.hostId===player.playerId) {
@@ -3735,6 +4387,7 @@ registerSocketHandlers(io, (socket) => {
     if (room.processingTurn) return;
 
     function wrong(msg) {
+      resetPlayerCombo(room, player.playerId || player.nickname);
       room.wrongCount++;
 
       const chance =
@@ -3790,6 +4443,7 @@ registerSocketHandlers(io, (socket) => {
     if (room.processingTurn) return;
     room.processingTurn = true;
 
+    const wordFeelEvent = recordAcceptedWordFeel(room, player, word);
     room.currentWord = word;
     room.usedWords.push(word);
 
@@ -3804,7 +4458,9 @@ registerSocketHandlers(io, (socket) => {
     }
 
     room.wrongCount = 0;
-    room.lastNotice = "";
+    room.lastNotice = wordFeelEvent && wordFeelEvent.label
+      ? `${player.nickname}: ${word} · ${wordFeelEvent.label} ${wordFeelEvent.length}글자`
+      : "";
     room.turn = nextActiveTurn(room, room.turn);
 
     setTimeLimitByTurn(room);
@@ -3981,6 +4637,7 @@ registerSocketHandlers(io, (socket) => {
 
     if (player && player.socketId === socket.id) {
       player.connected = false;
+      resetPlayerCombo(room, player.playerId || player.nickname);
     }
 
     if (room.status === "playing" && wasTurn) {
