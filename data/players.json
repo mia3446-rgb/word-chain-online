@@ -65,7 +65,7 @@
       "legendary": 0
     },
     "quests": {
-      "dailyKey": "2026-07-11",
+      "dailyKey": "2026-07-12",
       "weeklyKey": "2026-07-06",
       "dailyStats": {
         "games": 0,
@@ -204,7 +204,7 @@
     "endingCharacterCounts": {},
     "recentMatches": [],
     "dailyMissions": {
-      "dateKey": "2026-07-11",
+      "dateKey": "2026-07-12",
       "missions": [
         {
           "id": "daily_match_3",
@@ -218,7 +218,7 @@
             "coins": 180,
             "xp": 80
           },
-          "dateKey": "2026-07-11"
+          "dateKey": "2026-07-12"
         },
         {
           "id": "daily_words_20",
@@ -232,7 +232,7 @@
             "coins": 220,
             "xp": 120
           },
-          "dateKey": "2026-07-11"
+          "dateKey": "2026-07-12"
         },
         {
           "id": "daily_combo_3",
@@ -246,9 +246,17 @@
             "box": "common",
             "amount": 1
           },
-          "dateKey": "2026-07-11"
+          "dateKey": "2026-07-12"
         }
       ]
+    },
+    "clanId": "",
+    "clanRole": "",
+    "clanInviteInbox": [],
+    "dmUnread": 0,
+    "giftStats": {
+      "sentTodayKey": "",
+      "sentToday": 0
     }
   },
   "테스트": {
@@ -260,7 +268,7 @@
     "level": 12,
     "xp": 467,
     "totalXp": 4317,
-    "coins": 5880,
+    "coins": 6105,
     "wins": 5,
     "losses": 9,
     "games": 14,
@@ -336,13 +344,13 @@
       "legendary": 0
     },
     "quests": {
-      "dailyKey": "2026-07-11",
+      "dailyKey": "2026-07-12",
       "weeklyKey": "2026-07-06",
       "dailyStats": {
-        "games": 7,
-        "wins": 2,
-        "words": 31,
-        "xp": 798
+        "games": 0,
+        "wins": 0,
+        "words": 0,
+        "xp": 0
       },
       "weeklyStats": {
         "games": 14,
@@ -497,12 +505,22 @@
         },
         "time": 1783764707142,
         "read": false
+      },
+      {
+        "id": "a921902293e7",
+        "type": "daily",
+        "text": "DAY 3 출석 보상 획득",
+        "data": {
+          "day": 3
+        },
+        "time": 1783848650489,
+        "read": false
       }
     ],
     "dailyLogin": {
-      "lastClaimDate": "2026-07-11",
-      "streak": 2,
-      "totalDays": 2
+      "lastClaimDate": "2026-07-12",
+      "streak": 3,
+      "totalDays": 3
     },
     "prestige": 0,
     "collectionRewardsClaimed": [],
@@ -659,7 +677,7 @@
       }
     ],
     "dailyMissions": {
-      "dateKey": "2026-07-11",
+      "dateKey": "2026-07-12",
       "missions": [
         {
           "id": "daily_match_3",
@@ -667,13 +685,13 @@
           "desc": "오늘 경기 3회 플레이",
           "type": "matches",
           "target": 3,
-          "progress": 3,
+          "progress": 0,
           "claimed": false,
           "reward": {
             "coins": 180,
             "xp": 80
           },
-          "dateKey": "2026-07-11"
+          "dateKey": "2026-07-12"
         },
         {
           "id": "daily_words_20",
@@ -681,13 +699,13 @@
           "desc": "오늘 유효 단어 20개 제출",
           "type": "words",
           "target": 20,
-          "progress": 20,
+          "progress": 0,
           "claimed": false,
           "reward": {
             "coins": 220,
             "xp": 120
           },
-          "dateKey": "2026-07-11"
+          "dateKey": "2026-07-12"
         },
         {
           "id": "daily_combo_3",
@@ -695,15 +713,23 @@
           "desc": "한 경기에서 3콤보 달성",
           "type": "combo",
           "target": 3,
-          "progress": 3,
+          "progress": 0,
           "claimed": false,
           "reward": {
             "box": "common",
             "amount": 1
           },
-          "dateKey": "2026-07-11"
+          "dateKey": "2026-07-12"
         }
       ]
+    },
+    "clanId": "",
+    "clanRole": "",
+    "clanInviteInbox": [],
+    "dmUnread": 0,
+    "giftStats": {
+      "sentTodayKey": "",
+      "sentToday": 0
     }
   }
 }

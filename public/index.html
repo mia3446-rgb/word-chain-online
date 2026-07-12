@@ -49,6 +49,12 @@
         <button onclick="logout()" style="padding:8px 12px; margin-left:8px; font-size:12px;">로그아웃</button>
       </div>
 
+      <div class="v35-social-shortcuts">
+        <button onclick="openClan()">🛡️ 클랜</button>
+        <button onclick="openDirectMessages()">💌 DM</button>
+        <button onclick="openGifts()">🎁 선물</button>
+      </div>
+
       <div class="v23-shell">
         <div class="v23-topbar">
           <div>
@@ -449,6 +455,55 @@
   <div id="prestigeOverlay" class="prestige-overlay"><div><div class="prestige-emblem">♛</div><h1 id="prestigeOverlayTitle">PRESTIGE</h1><p>새로운 전설이 시작됩니다.</p><button onclick="closePrestigeCelebration()">확인</button></div></div>
 
   <div id="notificationModal" class="premium-modal"><div class="premium-panel"><div class="premium-panel-head"><h2>🔔 알림 센터</h2><button onclick="closePremiumModal('notificationModal')">닫기</button></div><div class="premium-panel-body"><button onclick="markNotificationsRead()">모두 읽음</button><div id="notificationList" class="notification-list"></div></div></div></div>
+
+  <div id="clanModal" class="premium-modal">
+    <div class="premium-panel v35-social-panel">
+      <div class="premium-panel-head"><h2>🛡️ Clan Ultimate</h2><button onclick="closePremiumModal('clanModal')">닫기</button></div>
+      <div class="premium-panel-body">
+        <div class="premium-tabs v35-tabs">
+          <button onclick="switchClanTab('home')">홈</button>
+          <button onclick="switchClanTab('members')">멤버</button>
+          <button onclick="switchClanTab('chat')">채팅</button>
+          <button onclick="switchClanTab('missions')">미션</button>
+          <button onclick="switchClanTab('war')">클랜전</button>
+          <button onclick="switchClanTab('vault')">단어 금고</button>
+          <button onclick="switchClanTab('rankings')">랭킹</button>
+        </div>
+        <div id="clanContent" class="v35-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="directMessageModal" class="premium-modal">
+    <div class="premium-panel v35-social-panel">
+      <div class="premium-panel-head"><h2>💌 Direct Messages</h2><button onclick="closePremiumModal('directMessageModal')">닫기</button></div>
+      <div class="premium-panel-body">
+        <div class="v35-dm-layout">
+          <div id="dmInbox" class="v35-side-list"></div>
+          <div>
+            <div class="friend-toolbar"><input id="dmTargetInput" placeholder="닉네임"><button onclick="openDmConversation()">대화 열기</button></div>
+            <div id="dmConversation" class="v35-chat-box"></div>
+            <div class="chat-row"><input id="dmTextInput" placeholder="메시지 입력" maxlength="800"><button onclick="sendDirectMessage()">전송</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="giftModal" class="premium-modal">
+    <div class="premium-panel v35-social-panel">
+      <div class="premium-panel-head"><h2>🎁 Gift Center</h2><button onclick="closePremiumModal('giftModal')">닫기</button></div>
+      <div class="premium-panel-body">
+        <div class="v35-gift-form">
+          <input id="giftTargetInput" placeholder="친구 닉네임">
+          <select id="giftTypeSelect"><option value="coins">Coins</option><option value="box">Box</option><option value="cosmetic">Cosmetic ID</option></select>
+          <input id="giftAmountInput" placeholder="코인 금액 / 아이템 ID / common" value="100">
+          <button onclick="sendGift()">선물 보내기</button>
+        </div>
+        <div id="giftHistoryList" class="v35-history-list"></div>
+      </div>
+    </div>
+  </div>
   <div id="partyInvitePopup" class="party-invite-popup"><h2>🎉 파티 초대</h2><div id="partyInviteText"></div><div id="partyInviteTimer" style="margin:10px 0;color:#fff176"></div><div style="display:flex;gap:8px"><button onclick="acceptPartyInvite()">수락</button><button onclick="declinePartyInvite()">거절</button></div></div>
   <div id="playerContextMenu" class="player-context-menu"></div>
 
@@ -683,6 +738,12 @@
 <script src="/js/social.js"></script>
 <script src="/js/shop.js"></script>
 <script src="/js/collection.js"></script>
+<script src="/js/clan.js"></script>
+<script src="/js/clanChat.js"></script>
+<script src="/js/clanWar.js"></script>
+<script src="/js/clanVault.js"></script>
+<script src="/js/directMessages.js"></script>
+<script src="/js/gifts.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>

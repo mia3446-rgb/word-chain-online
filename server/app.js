@@ -15,6 +15,12 @@ const { loadDictionaries } = require("./words");
 const {
   ensureRankedFields, applyRankedResult, publicRankedData
 } = require("./game");
+const { createClanService } = require("./clan");
+const { formatClanChatMessage } = require("./clanChat");
+const { createClanVaultService } = require("./clanVault");
+const { createClanWarService } = require("./clanWar");
+const { createGiftService } = require("./gifts");
+const { createDirectMessageService } = require("./directMessages");
 
 const PROJECT_ROOT = path.join(__dirname, "..");
 
@@ -40,6 +46,11 @@ const dataDir = process.env.DATA_DIR || path.join(PROJECT_ROOT, "data");
 const playersFile = path.join(dataDir, "players.json");
 const oldPlayersFile = path.join(PROJECT_ROOT, "players.json");
 const playerRepository = createPlayerRepository({ fs, dataDir, playersFile, oldPlayersFile });
+const clanService = createClanService({ fs, path, dataDir, makeToken, safePlayerKey });
+const clanVaultService = createClanVaultService({ fs, path, dataDir, makeToken });
+const clanWarService = createClanWarService({ fs, path, dataDir, makeToken });
+const giftService = createGiftService({ fs, path, dataDir, makeToken, safePlayerKey });
+const directMessageService = createDirectMessageService({ fs, path, dataDir, makeToken, safePlayerKey });
 
 let playerData = {};
 
@@ -104,6 +115,11 @@ function getDefaultProfile(nickname) {
     favoriteFriends: [],
     socialStatus: "online",
     notifications: [],
+    clanId: "",
+    clanRole: "",
+    clanInviteInbox: [],
+    dmUnread: 0,
+    giftStats: { sentTodayKey: "", sentToday: 0 },
     dailyLogin: {
       lastClaimDate: "",
       streak: 0,
@@ -947,6 +963,11 @@ function ensureSocialFields(profile) {
   if (!Array.isArray(profile.blockedPlayers)) profile.blockedPlayers = [];
   if (!Array.isArray(profile.favoriteFriends)) profile.favoriteFriends = [];
   if (!Array.isArray(profile.notifications)) profile.notifications = [];
+  if (typeof profile.clanId !== "string") profile.clanId = "";
+  if (typeof profile.clanRole !== "string") profile.clanRole = "";
+  if (!Array.isArray(profile.clanInviteInbox)) profile.clanInviteInbox = [];
+  profile.dmUnread = Math.max(0, Math.floor(Number(profile.dmUnread) || 0));
+  if (!profile.giftStats || typeof profile.giftStats !== "object") profile.giftStats = { sentTodayKey: "", sentToday: 0 };
   if (!["online","dnd"].includes(profile.socialStatus)) profile.socialStatus = "online";
   profile.friends = [...new Set(profile.friends.filter(name => name && name !== profile.nickname))];
   profile.friendRequests = [...new Set(profile.friendRequests.filter(name => name && name !== profile.nickname))];
@@ -1138,6 +1159,36 @@ function broadcastFriendPresence(nickname) {
   for (const friend of profile.friends) emitFriendsData(friend);
 }
 
+function syncPlayerClanFields(nickname) {
+  if (!nickname || !playerData[nickname]) return null;
+  const profile = ensureProfile(nickname);
+  const clan = clanService.findPlayerClan(nickname);
+  profile.clanId = clan ? clan.id : "";
+  profile.clanRole = clan ? clanService.getRole(clan, nickname) : "";
+  return clan;
+}
+
+function publicClanState(nickname) {
+  const clan = syncPlayerClanFields(nickname);
+  return {
+    myClan: clan ? clanService.publicClan(clan, nickname) : null,
+    clans: clanService.listPublicClans(nickname).slice(0, 60),
+    rankings: clanService.rankings("seasonPoints"),
+    invites: ensureProfile(nickname).clanInviteInbox || []
+  };
+}
+
+function emitClanData(nickname) {
+  const client = socketForNickname(nickname);
+  if (client && playerData[nickname]) client.emit("clanData", publicClanState(nickname));
+}
+
+function joinClanSocket(socket, nickname) {
+  const clan = syncPlayerClanFields(nickname);
+  if (clan) socket.join(`clan:${clan.id}`);
+  return clan;
+}
+
 function ownedRoomForSocket(socket) {
   const room=rooms[socket.data.roomCode];
   return room&&room.hostId===socket.data.playerId ? room : null;
@@ -1151,6 +1202,9 @@ function emitPremiumData(socket) {
   socket.emit("dailyMissionData", publicDailyMissions(profile));
   socket.emit("friendsData", publicFriendsData(profile));
   socket.emit("dailyLoginData", publicDailyLogin(profile));
+  socket.emit("clanData", publicClanState(nickname));
+  socket.emit("directMessageInbox", directMessageService.inbox(nickname, name => !!socketForNickname(name)));
+  socket.emit("giftHistory", giftService.history(nickname));
   socket.emit("notificationData",{items:profile.notifications.slice().reverse(),unread:profile.notifications.filter(item=>!item.read).length});
   broadcastFriendPresence(nickname);
   if (!socket.data.presenceAnnounced && profile.socialStatus!=="dnd") {
@@ -1525,6 +1579,7 @@ function publicProfile(nickname) {
   const rankedNames = Object.values(playerData).slice().sort((a,b)=>(b.level-a.level)||(b.totalXp-a.totalXp)).map(item=>item.nickname);
   const favoriteItem = getShopItem(profile.favorites.cosmeticId) || getShopItem(Object.values(profile.equipped).find(id=>id&&id!=="default"));
   const favoriteBadge = getShopItem(profile.favorites.badgeId) || getEquippedItem(profile,"profileBadge");
+  const clan = syncPlayerClanFields(profile.nickname);
 
   return {
     nickname: profile.nickname,
@@ -1562,6 +1617,7 @@ function publicProfile(nickname) {
     ,collectionOwned
     ,collectionTotal: eligibleCollection.length
     ,friendCount: profile.friends.length
+    ,clan: clan ? { id: clan.id, name: clan.name, tag: clan.tag, level: clan.level, role: clanService.getRole(clan, profile.nickname) } : null
     ,currentRank: rankedNames.indexOf(profile.nickname) + 1
     ,favoriteCosmetic: favoriteItem ? { id:favoriteItem.id,name:favoriteItem.name,icon:favoriteItem.icon||"🎁" } : null
     ,favoriteTitle: profile.favorites.title || profile.selectedTitle || ""
@@ -2593,6 +2649,18 @@ function applyMatchRewards(room) {
       combo: matchStats ? matchStats.highestCombo : 0,
       ranked: room.mode === "ranked" ? 1 : 0
     });
+    const clanAfterContribution = clanService.addContribution(profile.nickname, {
+      matches: 1,
+      wins: isWinner ? 1 : 0,
+      losses: isWinner ? 0 : 1,
+      words: matchStats ? matchStats.validWords : 0,
+      longWords: matchStats ? matchStats.longWordCount : 0,
+      combo: matchStats ? matchStats.highestCombo : 0,
+      xp: matchReward.xp
+    });
+    if (clanAfterContribution) {
+      for (const memberName of Object.keys(clanAfterContribution.members || {})) emitClanData(memberName);
+    }
 
     updateTitles(profile);
     const levelRewards = claimLevelRewards(profile);
@@ -3498,6 +3566,325 @@ registerSocketHandlers(io, (socket) => {
     socket.emit("friendsData", publicFriendsData(ensureProfile(nickname)));
   });
 
+  socket.on("getClans", () => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return socket.emit("errorMessage", "로그인 후 클랜을 이용할 수 있습니다.");
+    socket.emit("clanData", publicClanState(nickname));
+  });
+
+  socket.on("createClan", (payload = {}) => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return socket.emit("errorMessage", "로그인 후 클랜을 만들 수 있습니다.");
+    const result = clanService.createClan(nickname, payload);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    syncPlayerClanFields(nickname);
+    savePlayerData();
+    socket.join(`clan:${result.clan.id}`);
+    pushNotification(nickname, "clan", `${result.clan.name} 클랜 창설`, { clanId: result.clan.id });
+    emitClanData(nickname);
+  });
+
+  socket.on("deleteClan", ({ clanId } = {}) => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return;
+    const clan = clanService.getClan(clanId);
+    const members = clan ? Object.keys(clan.members || {}) : [];
+    const result = clanService.deleteClan(nickname, clanId);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    for (const member of members) {
+      syncPlayerClanFields(member);
+      emitClanData(member);
+      pushNotification(member, "clan", "클랜이 삭제되었습니다.", { clanId });
+    }
+    savePlayerData();
+  });
+
+  socket.on("requestJoinClan", ({ clanId } = {}) => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return;
+    const result = clanService.requestJoin(nickname, clanId);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    syncPlayerClanFields(nickname);
+    savePlayerData();
+    const clan = result.clan;
+    if (result.joined) {
+      socket.join(`clan:${clan.id}`);
+      io.to(`clan:${clan.id}`).emit("clanChatUpdate", clan.chat.slice(-60));
+      emitClanData(nickname);
+    } else {
+      for (const [member, data] of Object.entries(clan.members || {})) {
+        if (["owner", "viceLeader", "officer"].includes(data.role)) pushNotification(member, "clan", `${nickname}님의 클랜 가입 요청`, { clanId: clan.id });
+        emitClanData(member);
+      }
+      socket.emit("clanNotice", "가입 요청을 보냈습니다.");
+    }
+  });
+
+  socket.on("respondClanRequest", ({ clanId, nickname: targetName, accept } = {}) => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return;
+    const result = clanService.manageRequest(nickname, clanId, targetName, !!accept);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    const target = safePlayerKey(targetName);
+    syncPlayerClanFields(target);
+    savePlayerData();
+    pushNotification(target, "clan", accept ? "클랜 가입 요청이 승인되었습니다." : "클랜 가입 요청이 거절되었습니다.", { clanId });
+    emitClanData(target);
+    for (const member of Object.keys(result.clan.members || {})) emitClanData(member);
+  });
+
+  socket.on("leaveClan", () => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return;
+    const clan = clanService.findPlayerClan(nickname);
+    const members = clan ? Object.keys(clan.members || {}) : [];
+    const result = clanService.leaveClan(nickname);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    syncPlayerClanFields(nickname);
+    savePlayerData();
+    if (clan) socket.leave(`clan:${clan.id}`);
+    emitClanData(nickname);
+    for (const member of members) emitClanData(member);
+  });
+
+  socket.on("kickClanMember", ({ clanId, nickname: targetName } = {}) => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return;
+    const result = clanService.kickMember(nickname, clanId, targetName);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    const target = safePlayerKey(targetName);
+    syncPlayerClanFields(target);
+    savePlayerData();
+    pushNotification(target, "clan", "클랜에서 추방되었습니다.", { clanId });
+    emitClanData(target);
+    for (const member of Object.keys(result.clan.members || {})) emitClanData(member);
+  });
+
+  socket.on("transferClanOwnership", ({ clanId, nickname: targetName } = {}) => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return;
+    const result = clanService.transferOwnership(nickname, clanId, targetName);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    savePlayerData();
+    for (const member of Object.keys(result.clan.members || {})) emitClanData(member);
+  });
+
+  socket.on("setClanRole", ({ clanId, nickname: targetName, role } = {}) => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return;
+    const result = clanService.setRole(nickname, clanId, targetName, role);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    for (const member of Object.keys(result.clan.members || {})) emitClanData(member);
+  });
+
+  socket.on("updateClanProfile", ({ clanId, ...payload } = {}) => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return;
+    const result = clanService.updateClan(nickname, clanId, payload);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    for (const member of Object.keys(result.clan.members || {})) emitClanData(member);
+  });
+
+  socket.on("sendClanChat", ({ text } = {}) => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return;
+    const clan = clanService.findPlayerClan(nickname);
+    if (!clan) return socket.emit("errorMessage", "클랜에 가입되어 있지 않습니다.");
+    const message = formatClanChatMessage({ clanId: clan.id, nickname, text });
+    if (!message.text) return;
+    clanService.addChat(clan.id, message);
+    io.to(`clan:${clan.id}`).emit("clanChatMessage", message);
+    io.to(`clan:${clan.id}`).emit("clanChatUpdate", clan.chat.slice(-60));
+  });
+
+  socket.on("clanTyping", ({ typing } = {}) => {
+    const nickname = socket.data.nickname;
+    const clan = nickname && clanService.findPlayerClan(nickname);
+    if (clan) socket.to(`clan:${clan.id}`).emit("clanTyping", { nickname, typing: !!typing });
+  });
+
+  socket.on("setClanAnnouncement", ({ clanId, text } = {}) => {
+    const nickname = socket.data.nickname;
+    const clan = clanService.getClan(clanId);
+    if (!nickname || !clan || !clanService.hasPermission(clan, nickname, "edit")) return socket.emit("errorMessage", "공지 작성 권한이 없습니다.");
+    const message = formatClanChatMessage({ clanId, nickname: "SYSTEM", text: `📌 ${String(text || "").slice(0, 240)}`, type: "announcement" });
+    clan.announcements.push(message);
+    clan.announcements = clan.announcements.slice(-10);
+    clanService.addChat(clanId, message);
+    for (const member of Object.keys(clan.members || {})) {
+      pushNotification(member, "clan", "새 클랜 공지", { clanId });
+      emitClanData(member);
+    }
+    io.to(`clan:${clanId}`).emit("clanChatMessage", message);
+  });
+
+  socket.on("claimClanMission", ({ clanId, missionId } = {}) => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return;
+    const result = clanService.claimMission(nickname, clanId, missionId);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    for (const member of Object.keys(result.clan.members || {})) {
+      pushNotification(member, "clan_mission", "클랜 미션 보상 획득", { clanId, missionId });
+      emitClanData(member);
+    }
+  });
+
+  socket.on("getClanRankings", ({ sortBy } = {}) => {
+    socket.emit("clanRankings", clanService.rankings(sortBy));
+  });
+
+  socket.on("getClanVault", ({ query } = {}) => {
+    const nickname = socket.data.nickname;
+    const clan = nickname && clanService.findPlayerClan(nickname);
+    if (!clan) return socket.emit("errorMessage", "클랜에 가입되어 있지 않습니다.");
+    socket.emit("clanVaultData", clanVaultService.publicVault(clan.id, query));
+  });
+
+  socket.on("addClanVaultWord", (payload = {}) => {
+    const nickname = socket.data.nickname;
+    const clan = nickname && clanService.findPlayerClan(nickname);
+    if (!clan) return socket.emit("errorMessage", "클랜에 가입되어 있지 않습니다.");
+    const result = clanVaultService.addWord(clan.id, nickname, payload);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    io.to(`clan:${clan.id}`).emit("clanVaultData", clanVaultService.publicVault(clan.id));
+  });
+
+  socket.on("removeClanVaultWord", ({ id } = {}) => {
+    const nickname = socket.data.nickname;
+    const clan = nickname && clanService.findPlayerClan(nickname);
+    if (!clan || !clanService.hasPermission(clan, nickname, "edit")) return socket.emit("errorMessage", "단어 삭제 권한이 없습니다.");
+    clanVaultService.removeWord(clan.id, id);
+    io.to(`clan:${clan.id}`).emit("clanVaultData", clanVaultService.publicVault(clan.id));
+  });
+
+  socket.on("createClanWar", ({ targetClanId, size } = {}) => {
+    const nickname = socket.data.nickname;
+    const clan = nickname && clanService.findPlayerClan(nickname);
+    if (!clan || !clanService.hasPermission(clan, nickname, "invite")) return socket.emit("errorMessage", "클랜전 생성 권한이 없습니다.");
+    const target = clanService.getClan(targetClanId);
+    if (!target) return socket.emit("errorMessage", "상대 클랜을 찾을 수 없습니다.");
+    const result = clanWarService.create(clan.id, target.id, size, nickname);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    for (const member of Object.keys(target.members || {})) pushNotification(member, "clan_war", `${clan.name} 클랜전 초대`, { warId: result.war.id });
+    socket.emit("clanWarsData", clanWarService.listForClan(clan.id));
+  });
+
+  socket.on("getClanWars", () => {
+    const nickname = socket.data.nickname;
+    const clan = nickname && clanService.findPlayerClan(nickname);
+    socket.emit("clanWarsData", clan ? clanWarService.listForClan(clan.id) : []);
+  });
+
+  socket.on("acceptClanWar", ({ warId } = {}) => {
+    const result = clanWarService.accept(warId);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    io.emit("clanWarUpdate", result.war);
+  });
+
+  socket.on("startClanWar", ({ warId } = {}) => {
+    const result = clanWarService.start(warId);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    io.emit("clanWarUpdate", result.war);
+  });
+
+  socket.on("finishClanWar", ({ warId, winnerClanId } = {}) => {
+    const result = clanWarService.finish(warId, winnerClanId);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    for (const id of [result.war.fromClanId, result.war.toClanId]) {
+      const clan = clanService.getClan(id);
+      if (!clan) continue;
+      const won = id === winnerClanId;
+      clan.warStats.wins += won ? 1 : 0;
+      clan.warStats.losses += won ? 0 : 1;
+      clan.warStats.currentStreak = won ? clan.warStats.currentStreak + 1 : 0;
+      clan.warStats.longestStreak = Math.max(clan.warStats.longestStreak, clan.warStats.currentStreak);
+      clan.warStats.seasonRating += won ? 25 : -12;
+      clan.seasonPoints += won ? 150 : 40;
+      clanService.save();
+      for (const member of Object.keys(clan.members || {})) emitClanData(member);
+    }
+    io.emit("clanWarUpdate", result.war);
+  });
+
+  socket.on("getDirectMessages", ({ nickname: otherName } = {}) => {
+    const nickname = socket.data.nickname;
+    if (!nickname) return;
+    if (otherName) {
+      directMessageService.markRead(nickname, otherName);
+      socket.emit("directMessageConversation", directMessageService.publicConversation(nickname, otherName, !!socketForNickname(safePlayerKey(otherName))));
+    }
+    socket.emit("directMessageInbox", directMessageService.inbox(nickname, name => !!socketForNickname(name)));
+  });
+
+  socket.on("sendDirectMessage", ({ nickname: targetName, text } = {}) => {
+    const nickname = socket.data.nickname;
+    targetName = safePlayerKey(targetName);
+    if (!nickname || !playerData[targetName]) return socket.emit("errorMessage", "메시지를 보낼 플레이어를 찾을 수 없습니다.");
+    const sender = ensureProfile(nickname);
+    const target = ensureProfile(targetName);
+    if (sender.blockedPlayers.includes(targetName) || target.blockedPlayers.includes(nickname)) return socket.emit("errorMessage", "차단 관계에서는 메시지를 보낼 수 없습니다.");
+    const result = directMessageService.send(nickname, targetName, text);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    const targetSocket = socketForNickname(targetName);
+    if (targetSocket) {
+      targetSocket.emit("directMessageReceived", result.message);
+      targetSocket.emit("directMessageInbox", directMessageService.inbox(targetName, name => !!socketForNickname(name)));
+    }
+    pushNotification(targetName, "direct_message", `${nickname}님의 메시지`, { from: nickname });
+    socket.emit("directMessageConversation", directMessageService.publicConversation(nickname, targetName, !!targetSocket));
+    socket.emit("directMessageInbox", directMessageService.inbox(nickname, name => !!socketForNickname(name)));
+  });
+
+  socket.on("markDirectMessagesRead", ({ nickname: otherName } = {}) => {
+    const nickname = socket.data.nickname;
+    if (!nickname || !otherName) return;
+    directMessageService.markRead(nickname, otherName);
+    socket.emit("directMessageInbox", directMessageService.inbox(nickname, name => !!socketForNickname(name)));
+  });
+
+  socket.on("sendGift", ({ nickname: targetName, type, amount, boxType, itemId } = {}) => {
+    const nickname = socket.data.nickname;
+    targetName = safePlayerKey(targetName);
+    if (!nickname || !playerData[targetName]) return socket.emit("errorMessage", "선물 받을 친구를 찾을 수 없습니다.");
+    const sender = ensureProfile(nickname);
+    const receiver = ensureProfile(targetName);
+    ensureShopFields(sender); ensureShopFields(receiver);
+    if (!sender.friends.includes(targetName)) return socket.emit("errorMessage", "친구에게만 선물을 보낼 수 있습니다.");
+    const giftLimit = giftService.canSend(nickname);
+    if (!giftLimit.ok) return socket.emit("errorMessage", giftLimit.message);
+    const gift = { type };
+    if (type === "coins") {
+      amount = Math.max(1, Math.min(10000, Math.floor(Number(amount) || 0)));
+      if (sender.coins < amount) return socket.emit("errorMessage", "코인이 부족합니다.");
+      sender.coins -= amount; receiver.coins += amount; gift.amount = amount;
+    } else if (type === "box") {
+      if (!sender.boxes[boxType] || sender.boxes[boxType] < 1) return socket.emit("errorMessage", "보낼 상자가 없습니다.");
+      sender.boxes[boxType]--; receiver.boxes[boxType] = (receiver.boxes[boxType] || 0) + 1; gift.boxType = boxType;
+    } else if (type === "cosmetic") {
+      if (!sender.inventory.includes(itemId)) return socket.emit("errorMessage", "보유하지 않은 코스메틱입니다.");
+      sender.inventory = sender.inventory.filter(id => id !== itemId);
+      if (!receiver.inventory.includes(itemId)) receiver.inventory.push(itemId);
+      gift.itemId = itemId;
+    } else return socket.emit("errorMessage", "지원하지 않는 선물입니다.");
+    const result = giftService.record(nickname, targetName, gift);
+    if (!result.ok) return socket.emit("errorMessage", result.message);
+    savePlayerData();
+    pushNotification(targetName, "gift", `${nickname}님의 선물 도착`, { gift });
+    socket.emit("giftHistory", giftService.history(nickname));
+    socket.emit("profileData", publicProfile(nickname));
+    const targetSocket = socketForNickname(targetName);
+    if (targetSocket) {
+      targetSocket.emit("giftReceived", result.gift);
+      targetSocket.emit("giftHistory", giftService.history(targetName));
+      targetSocket.emit("profileData", publicProfile(targetName));
+    }
+  });
+
+  socket.on("getGiftHistory", () => {
+    const nickname = socket.data.nickname;
+    if (nickname) socket.emit("giftHistory", giftService.history(nickname));
+  });
+
   socket.on("searchPlayers", ({ query }) => {
     const nickname = socket.data.nickname;
     if (!nickname) return socket.emit("errorMessage", "로그인 후 사용할 수 있습니다.");
@@ -3738,6 +4125,7 @@ registerSocketHandlers(io, (socket) => {
     savePlayerData();
 
     socket.data.nickname = nickname;
+    joinClanSocket(socket, nickname);
     socket.emit("authSuccess", {
       nickname,
       token: profile.sessionToken,
@@ -3764,6 +4152,7 @@ registerSocketHandlers(io, (socket) => {
     savePlayerData();
 
     socket.data.nickname = nickname;
+    joinClanSocket(socket, nickname);
     socket.emit("authSuccess", {
       nickname,
       token: profile.sessionToken,
@@ -3782,6 +4171,7 @@ registerSocketHandlers(io, (socket) => {
     }
 
     socket.data.nickname = nickname;
+    joinClanSocket(socket, nickname);
     socket.emit("authSuccess", {
       nickname,
       token: profile.sessionToken,

@@ -2005,6 +2005,13 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     let latestCollectionData = null;
     let inspectedCollectionNickname = "";
     let collectionRenderTimer = null;
+    let latestClanData = { myClan: null, clans: [], rankings: [], invites: [] };
+    let currentClanTab = "home";
+    let latestClanVault = { words: [] };
+    let latestClanWars = [];
+    let latestDmInbox = [];
+    let latestDmConversation = null;
+    let latestGiftHistory = [];
     function scheduleCollectionRender(){clearTimeout(collectionRenderTimer);collectionRenderTimer=setTimeout(renderCollectionItems,90);}
 
     function openCollection(nickname = currentUserNickname) {
@@ -2217,6 +2224,59 @@ function renderSeasonRewardsPreview(currentTier = "Unranked") {
     function copyNickname(nickname){navigator.clipboard?.writeText(nickname);showToast(`${nickname} 복사 완료`);closePlayerContextMenu();}
     function reportPlayer(nickname){const reason=prompt(`${nickname}님 신고 사유`);if(reason)socket.emit("reportPlayer",{nickname,reason});closePlayerContextMenu();}
     function setSocialStatus(status){socket.emit("setSocialStatus",{status});}
+
+    function openClan(){showModalElement(document.getElementById("clanModal"));socket.emit("getClans");socket.emit("getClanWars");socket.emit("getClanVault");}
+    function switchClanTab(tab){currentClanTab=tab;renderClan();}
+    function myClan(){return latestClanData&&latestClanData.myClan;}
+    function renderClan(){
+      const box=document.getElementById("clanContent");if(!box)return;
+      const clan=myClan();
+      if(!clan){
+        box.innerHTML=`<div class="v35-clan-create"><h3>클랜 만들기</h3><input id="clanNameInput" placeholder="클랜 이름"><input id="clanTagInput" placeholder="태그 2~5글자"><input id="clanDescInput" placeholder="설명"><label><input id="clanPublicInput" type="checkbox" checked> 공개 클랜</label><button onclick="createClan()">창설</button></div><h3>클랜 찾기</h3><div class="v35-card-grid">${(latestClanData.clans||[]).map(c=>`<div class="v35-social-card"><b>${escapeHtml(c.emblem||"🛡️")} [${escapeHtml(c.tag)}] ${escapeHtml(c.name)}</b><span>Lv.${c.level} · ${c.memberCount}/${c.maxMembers} · 승률 ${c.winRate}%</span><p>${escapeHtml(c.description||"")}</p><button onclick="requestJoinClan('${c.id}')">${c.isPublic?"가입":"요청"}</button></div>`).join("")||"<div class='premium-empty'>클랜이 없습니다.</div>"}</div>`;
+        return;
+      }
+      if(currentClanTab==="members"){
+        box.innerHTML=`<h3>[${escapeHtml(clan.tag)}] ${escapeHtml(clan.name)} 멤버</h3><div class="v35-card-grid">${clan.members.map(m=>`<div class="v35-social-card"><b>${escapeHtml(m.nickname)}</b><span>${escapeHtml(m.roleLabel)} · 기여도 ${m.contribution||0}</span>${clan.canManage&&m.role!=="owner"?`<button onclick="kickClanMember('${m.nickname}')">추방</button><button onclick="setClanRole('${m.nickname}','officer')">Officer</button><button onclick="setClanRole('${m.nickname}','member')">Member</button>`:""}</div>`).join("")}</div>${clan.requests&&clan.requests.length?`<h3>가입 요청</h3>${clan.requests.map(n=>`<div class="friend-row"><b>${escapeHtml(n)}</b><button onclick="respondClanRequest('${n}',true)">승인</button><button onclick="respondClanRequest('${n}',false)">거절</button></div>`).join("")}`:""}`;
+      } else if(currentClanTab==="chat"){
+        box.innerHTML=`<div class="v35-chat-box">${(clan.chat||[]).map(m=>`<div class="v35-chat-line ${m.type||""}"><b>${escapeHtml(m.nickname||"SYSTEM")}</b><span>${escapeHtml(m.text)}</span><small>${new Date(m.time).toLocaleTimeString("ko-KR")}</small></div>`).join("")}</div><div id="clanTypingText" class="typing-indicator"></div><div class="chat-row"><input id="clanChatInput" placeholder="클랜 메시지" maxlength="400" oninput="sendClanTyping()"><button onclick="sendClanChat()">전송</button></div><div class="friend-toolbar"><input id="clanAnnouncementInput" placeholder="공지"><button onclick="setClanAnnouncement()">공지 등록</button></div>`;
+      } else if(currentClanTab==="missions"){
+        box.innerHTML=`<h3>클랜 미션</h3><div class="quest-grid">${(clan.missions||[]).map(m=>`<div class="quest-card ${m.claimed?"claimed":""}"><div class="quest-title">${escapeHtml(m.name)}</div><div class="quest-progress"><div style="width:${Math.min(100,Math.floor((m.progress||0)/m.target*100))}%"></div></div><strong>${m.progress||0}/${m.target}</strong><div class="quest-reward">Clan XP ${m.reward?.xp||0} · Clan Coins ${m.reward?.coins||0}</div><button ${m.claimed||(m.progress||0)<m.target?"disabled":""} onclick="claimClanMission('${m.id}')">${m.claimed?"완료":"수령"}</button></div>`).join("")}</div>`;
+      } else if(currentClanTab==="war"){
+        const targets=(latestClanData.clans||[]).filter(c=>c.id!==clan.id);
+        box.innerHTML=`<h3>클랜전</h3><div class="v35-war-tools"><select id="clanWarTarget">${targets.map(c=>`<option value="${c.id}">[${escapeHtml(c.tag)}] ${escapeHtml(c.name)}</option>`).join("")}</select><select id="clanWarSize"><option value="4">4 vs 4</option><option value="8">8 vs 8</option></select><button onclick="createClanWar()">초대</button></div><div class="v35-card-grid">${(latestClanWars||[]).map(w=>`<div class="v35-social-card"><b>${w.size}v${w.size} · ${w.status}</b><span>${new Date(w.createdAt).toLocaleString("ko-KR")}</span><button onclick="acceptClanWar('${w.id}')">수락</button><button onclick="startClanWar('${w.id}')">시작</button><button onclick="finishClanWar('${w.id}','${clan.id}')">승리 기록</button></div>`).join("")||"<div class='premium-empty'>클랜전 기록 없음</div>"}</div>`;
+      } else if(currentClanTab==="vault"){
+        box.innerHTML=`<h3>클랜 단어 금고</h3><div class="friend-toolbar"><input id="vaultWordInput" placeholder="단어"><input id="vaultNoteInput" placeholder="전략 노트"><button onclick="addClanVaultWord()">저장</button></div><div class="v35-card-grid">${(latestClanVault.words||[]).map(w=>`<div class="v35-social-card"><b>${escapeHtml(w.word)}</b><span>${escapeHtml(w.category)} · ${escapeHtml(w.createdBy)}</span><p>${escapeHtml(w.note)}</p>${clan.canManage?`<button onclick="removeClanVaultWord('${w.id}')">삭제</button>`:""}</div>`).join("")||"<div class='premium-empty'>저장된 단어가 없습니다.</div>"}</div>`;
+      } else if(currentClanTab==="rankings"){
+        box.innerHTML=`<h3>클랜 랭킹 TOP 100</h3><div class="v35-ranking-list">${(latestClanData.rankings||[]).map((c,i)=>`<div class="ranked-leaderboard-row v35-ranking-row"><b>#${i+1}</b><span>[${escapeHtml(c.tag)}] ${escapeHtml(c.name)}</span><span>Lv.${c.level}</span><strong>${c.seasonPoints}</strong></div>`).join("")}</div>`;
+      } else {
+        box.innerHTML=`<div class="v35-clan-hero"><div class="v35-emblem">${escapeHtml(clan.emblem||"🛡️")}</div><div><h3>[${escapeHtml(clan.tag)}] ${escapeHtml(clan.name)}</h3><p>${escapeHtml(clan.description||"")}</p><b>Lv.${clan.level} · XP ${clan.xp}/${clan.nextXp} · Clan Coins ${clan.coins}</b></div></div><div class="v35-stat-grid"><div>멤버<strong>${clan.memberCount}/${clan.maxMembers}</strong></div><div>승률<strong>${clan.winRate}%</strong></div><div>시즌 포인트<strong>${clan.seasonPoints}</strong></div><div>클랜전<strong>${clan.warStats?.wins||0}승 ${clan.warStats?.losses||0}패</strong></div></div><div class="friend-toolbar"><input id="clanDescEdit" placeholder="설명 수정"><input id="clanEmblemEdit" placeholder="엠블럼"><button onclick="updateClanProfile()">프로필 저장</button><button onclick="leaveClan()">탈퇴</button></div>`;
+      }
+    }
+    function createClan(){socket.emit("createClan",{name:document.getElementById("clanNameInput").value,tag:document.getElementById("clanTagInput").value,description:document.getElementById("clanDescInput").value,isPublic:document.getElementById("clanPublicInput").checked});}
+    function requestJoinClan(id){socket.emit("requestJoinClan",{clanId:id});}
+    function respondClanRequest(nick,accept){socket.emit("respondClanRequest",{clanId:myClan()?.id,nickname:nick,accept});}
+    function kickClanMember(nick){if(confirm(`${nick} 추방?`))socket.emit("kickClanMember",{clanId:myClan()?.id,nickname:nick});}
+    function setClanRole(nick,role){socket.emit("setClanRole",{clanId:myClan()?.id,nickname:nick,role});}
+    function updateClanProfile(){socket.emit("updateClanProfile",{clanId:myClan()?.id,description:document.getElementById("clanDescEdit").value,emblem:document.getElementById("clanEmblemEdit").value});}
+    function leaveClan(){if(confirm("클랜을 탈퇴할까요?"))socket.emit("leaveClan");}
+    function sendClanChat(){const input=document.getElementById("clanChatInput");if(input&&input.value.trim()){socket.emit("sendClanChat",{text:input.value});input.value="";}}
+    function sendClanTyping(){socket.emit("clanTyping",{typing:true});}
+    function setClanAnnouncement(){socket.emit("setClanAnnouncement",{clanId:myClan()?.id,text:document.getElementById("clanAnnouncementInput").value});}
+    function claimClanMission(id){socket.emit("claimClanMission",{clanId:myClan()?.id,missionId:id});}
+    function createClanWar(){socket.emit("createClanWar",{targetClanId:document.getElementById("clanWarTarget").value,size:document.getElementById("clanWarSize").value});}
+    function acceptClanWar(id){socket.emit("acceptClanWar",{warId:id});}
+    function startClanWar(id){socket.emit("startClanWar",{warId:id});}
+    function finishClanWar(id,winnerClanId){socket.emit("finishClanWar",{warId:id,winnerClanId});}
+    function addClanVaultWord(){socket.emit("addClanVaultWord",{word:document.getElementById("vaultWordInput").value,note:document.getElementById("vaultNoteInput").value,category:"strategy"});}
+    function removeClanVaultWord(id){socket.emit("removeClanVaultWord",{id});}
+    function openDirectMessages(){showModalElement(document.getElementById("directMessageModal"));socket.emit("getDirectMessages");}
+    function openDmConversation(){const target=document.getElementById("dmTargetInput").value.trim();if(target)socket.emit("getDirectMessages",{nickname:target});}
+    function renderDmInbox(){const box=document.getElementById("dmInbox");if(box)box.innerHTML=latestDmInbox.map(c=>`<button class="v35-inbox-row ${c.unread?"unread":""}" onclick="document.getElementById('dmTargetInput').value='${escapeHtml(c.other)}';openDmConversation();">${escapeHtml(c.other)}<small>${c.online?"Online":"Offline"} · ${c.unread||0}</small></button>`).join("")||"<div class='premium-empty'>대화 없음</div>";}
+    function renderDmConversation(){const box=document.getElementById("dmConversation");if(!box)return;const conv=latestDmConversation;box.innerHTML=conv?(conv.messages||[]).map(m=>`<div class="v35-dm-message ${m.from===currentUserNickname?"mine":""}"><b>${escapeHtml(m.from)}</b><span>${escapeHtml(m.text)}</span><small>${new Date(m.time).toLocaleString("ko-KR")}</small></div>`).join(""):"<div class='premium-empty'>대화를 선택하세요.</div>";}
+    function sendDirectMessage(){const target=document.getElementById("dmTargetInput").value.trim();const text=document.getElementById("dmTextInput").value.trim();if(target&&text){socket.emit("sendDirectMessage",{nickname:target,text});document.getElementById("dmTextInput").value="";}}
+    function openGifts(){showModalElement(document.getElementById("giftModal"));socket.emit("getGiftHistory");}
+    function renderGiftHistory(){const box=document.getElementById("giftHistoryList");if(box)box.innerHTML=(latestGiftHistory||[]).map(g=>`<div class="v35-social-card"><b>${escapeHtml(g.from)} → ${escapeHtml(g.to)}</b><span>${escapeHtml(g.gift?.type||"gift")} ${g.gift?.amount||g.gift?.boxType||g.gift?.itemId||""}</span><small>${new Date(g.time).toLocaleString("ko-KR")}</small></div>`).join("")||"<div class='premium-empty'>선물 기록 없음</div>";}
+    function sendGift(){const target=document.getElementById("giftTargetInput").value.trim();const type=document.getElementById("giftTypeSelect").value;const value=document.getElementById("giftAmountInput").value.trim();const payload={nickname:target,type};if(type==="coins")payload.amount=Number(value);else if(type==="box")payload.boxType=value||"common";else payload.itemId=value;socket.emit("sendGift",payload);}
 
     function openNotifications(){showModalElement(document.getElementById("notificationModal"));socket.emit("getNotifications");}
     function markNotificationsRead(){socket.emit("markNotificationsRead");}
@@ -2794,6 +2854,40 @@ function closeRankEventOverlay() {
       playSound("success");
       showToast(`🤝 ${message}`);
     });
+    socket.on("clanData", data => { latestClanData = data || latestClanData; renderClan(); });
+    socket.on("clanNotice", message => showToast(`🛡️ ${message}`));
+    socket.on("clanChatMessage", message => {
+      if (latestClanData.myClan) {
+        latestClanData.myClan.chat = latestClanData.myClan.chat || [];
+        latestClanData.myClan.chat.push(message);
+        latestClanData.myClan.chat = latestClanData.myClan.chat.slice(-60);
+        if (currentClanTab === "chat") renderClan();
+      }
+    });
+    socket.on("clanChatUpdate", chat => {
+      if (latestClanData.myClan) latestClanData.myClan.chat = chat || [];
+      if (currentClanTab === "chat") renderClan();
+    });
+    socket.on("clanTyping", ({nickname,typing}) => {
+      const el = document.getElementById("clanTypingText");
+      if (el) el.textContent = typing ? `${nickname} 입력 중...` : "";
+    });
+    socket.on("clanRankings", board => { latestClanData.rankings = board || []; if (currentClanTab === "rankings") renderClan(); });
+    socket.on("clanVaultData", data => { latestClanVault = data || { words: [] }; if (currentClanTab === "vault") renderClan(); });
+    socket.on("clanWarsData", wars => { latestClanWars = wars || []; if (currentClanTab === "war") renderClan(); });
+    socket.on("clanWarUpdate", war => {
+      latestClanWars = [war].concat((latestClanWars || []).filter(item => item.id !== war.id));
+      showToast("🛡️ 클랜전 상태 업데이트");
+      if (currentClanTab === "war") renderClan();
+    });
+    socket.on("directMessageInbox", inbox => { latestDmInbox = inbox || []; renderDmInbox(); });
+    socket.on("directMessageConversation", conversation => { latestDmConversation = conversation; renderDmConversation(); renderDmInbox(); });
+    socket.on("directMessageReceived", message => {
+      showToast(`💌 ${message.from}: ${message.text}`);
+      socket.emit("getDirectMessages");
+    });
+    socket.on("giftHistory", history => { latestGiftHistory = history || []; renderGiftHistory(); });
+    socket.on("giftReceived", gift => { playSound("success"); showToast(`🎁 ${gift.from}님의 선물 도착`); });
     socket.on("whisperMessage", (message) => {
       showWhisperPopup(message);
     });
